@@ -5,18 +5,18 @@ import PlatformFilter from "@/app/components/PlatformFilter";
 import PostForm from "@/app/components/PostForm";
 import PostTable from "@/app/components/PostTable";
 import SummaryPanel from "@/app/components/SummaryPanel";
-import { seedPosts } from "@/app/lib/seed-posts";
 import { Platform, SocialPost } from "@/app/lib/types";
 
 const STORAGE_KEY = "social-metrics-dashboard-posts";
 
 export default function Home() {
-  const [posts, setPosts] = useState<SocialPost[]>(seedPosts);
+  const [posts, setPosts] = useState<SocialPost[]>([]);
   const [selectedPlatform, setSelectedPlatform] = useState<Platform | "All">(
     "All"
   );
   const [isImportingInstagram, setIsImportingInstagram] = useState(false);
-  const [instagramStatus, setInstagramStatus] = useState("");
+  const [instagramStatus, setInstagramStatus] = useState("Checking Instagram connection...");
+  const [isInstagramConnected, setIsInstagramConnected] = useState(false);
 
   useEffect(() => {
     const savedPosts = window.localStorage.getItem(STORAGE_KEY);
@@ -26,20 +26,43 @@ export default function Home() {
         const parsedPosts = JSON.parse(savedPosts) as SocialPost[];
         setPosts(parsedPosts);
       } catch {
-        setPosts(seedPosts);
+        setPosts([]);
       }
     }
+
+    checkInstagramStatus();
 
     const params = new URLSearchParams(window.location.search);
 
     if (params.get("instagram") === "connected") {
-      setInstagramStatus("Instagram connected successfully.");
+      setInstagramStatus("Instagram OAuth completed. Checking imported account...");
     }
   }, []);
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(posts));
   }, [posts]);
+
+  async function checkInstagramStatus() {
+    try {
+      const response = await fetch("/api/instagram/status", {
+        cache: "no-store"
+      });
+
+      const data = await response.json();
+
+      if (data.connected) {
+        setIsInstagramConnected(true);
+        setInstagramStatus(`Instagram connected. User ID: ${data.userId}`);
+      } else {
+        setIsInstagramConnected(false);
+        setInstagramStatus("Instagram is not connected yet.");
+      }
+    } catch {
+      setIsInstagramConnected(false);
+      setInstagramStatus("Could not check Instagram connection.");
+    }
+  }
 
   const filteredPosts = useMemo(() => {
     if (selectedPlatform === "All") {
@@ -57,17 +80,21 @@ export default function Home() {
     setPosts((currentPosts) => currentPosts.filter((post) => post.id !== id));
   }
 
-  function handleResetData() {
-    setPosts(seedPosts);
+  function handleClearData() {
+    setPosts([]);
     setSelectedPlatform("All");
+    window.localStorage.removeItem(STORAGE_KEY);
   }
 
   async function handleImportInstagram() {
     setIsImportingInstagram(true);
-    setInstagramStatus("");
+    setInstagramStatus("Importing Instagram posts...");
 
     try {
-      const response = await fetch("/api/instagram/media");
+      const response = await fetch("/api/instagram/media", {
+        cache: "no-store"
+      });
+
       const data = await response.json();
 
       if (!response.ok) {
@@ -89,6 +116,7 @@ export default function Home() {
       setInstagramStatus("Failed to import Instagram posts.");
     } finally {
       setIsImportingInstagram(false);
+      checkInstagramStatus();
     }
   }
 
@@ -104,8 +132,8 @@ export default function Home() {
               Track viewer count and likes across your posts
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-              Manual-first dashboard for Instagram, LinkedIn, X, and OKKY.
-              Instagram can now be connected directly without Facebook Login.
+              Connect Instagram directly, then import your real posts. No demo
+              data is shown by default.
             </p>
           </div>
 
@@ -120,27 +148,25 @@ export default function Home() {
             <button
               type="button"
               onClick={handleImportInstagram}
-              disabled={isImportingInstagram}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isImportingInstagram || !isInstagramConnected}
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isImportingInstagram ? "Importing..." : "Import Instagram posts"}
             </button>
 
             <button
               type="button"
-              onClick={handleResetData}
+              onClick={handleClearData}
               className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm hover:border-slate-400"
             >
-              Reset sample data
+              Clear data
             </button>
           </div>
         </header>
 
-        {instagramStatus ? (
-          <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-700 shadow-sm">
-            {instagramStatus}
-          </section>
-        ) : null}
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-700 shadow-sm">
+          {instagramStatus}
+        </section>
 
         <section className="mt-8">
           <SummaryPanel posts={filteredPosts} />
@@ -174,8 +200,8 @@ export default function Home() {
           <h2 className="text-lg font-bold text-slate-950">API notes</h2>
           <p className="mt-2">
             Instagram direct login imports media, captions, links, likes, and
-            comments. Viewer count and deeper insights require insight-specific
-            API calls and eligible permissions.
+            comments after OAuth succeeds. Viewer count and deeper insights
+            require additional insight-specific API calls.
           </p>
         </section>
       </div>
