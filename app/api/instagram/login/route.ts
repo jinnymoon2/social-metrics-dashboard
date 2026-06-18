@@ -15,5 +15,9 @@ export async function GET() {
   url.searchParams.set("scope", scopes.join(","));
   url.searchParams.set("response_type", "code");
 
+  // Important: this keeps the flow as Instagram Login, not Facebook Login.
+  url.searchParams.set("enable_fb_login", "0");
+  url.searchParams.set("force_authentication", "1");
+
   return NextResponse.redirect(url);
 }
