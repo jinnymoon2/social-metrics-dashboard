@@ -33,19 +33,20 @@ export default function Home() {
     }
 
     const params = new URLSearchParams(window.location.search);
-    const code = params.get("code");
-    const error = params.get("error");
-    const errorDescription = params.get("error_description");
+    const instagramError = params.get("instagram_error");
+    const instagramConnected = params.get("instagram");
 
-    if (error || errorDescription) {
-      setInstagramStatus(
-        errorDescription || error || "Instagram authorization failed."
-      );
+    if (instagramError) {
+      setIsInstagramConnected(false);
+      setInstagramStatus(instagramError);
+      window.history.replaceState({}, "", "/");
       return;
     }
 
-    if (code) {
-      exchangeInstagramCode(code);
+    if (instagramConnected === "connected") {
+      setInstagramStatus("Instagram OAuth completed. Checking connection...");
+      window.history.replaceState({}, "", "/");
+      checkInstagramStatus();
       return;
     }
 
@@ -74,38 +75,6 @@ export default function Home() {
     } catch {
       setIsInstagramConnected(false);
       setInstagramStatus("Could not check Instagram connection.");
-    }
-  }
-
-  async function exchangeInstagramCode(code: string) {
-    setInstagramStatus("Finishing Instagram connection...");
-
-    try {
-      const response = await fetch("/api/instagram/exchange", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ code })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setIsInstagramConnected(false);
-        setInstagramStatus(
-          data.details || data.error || "Failed to finish Instagram connection."
-        );
-        return;
-      }
-
-      window.history.replaceState({}, "", "/");
-      setIsInstagramConnected(true);
-      setInstagramStatus(`Instagram connected. User ID: ${data.userId}`);
-      await checkInstagramStatus();
-    } catch {
-      setIsInstagramConnected(false);
-      setInstagramStatus("Failed to finish Instagram connection.");
     }
   }
 
