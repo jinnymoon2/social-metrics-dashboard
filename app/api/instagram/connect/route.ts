@@ -3,9 +3,14 @@ import { buildInstagramAuthorizeUrl } from "@/app/lib/instagram";
 
 export const dynamic = "force-dynamic";
 
+function getRuntimeRedirectUri(request: NextRequest) {
+  return new URL("/", request.url).toString();
+}
+
 export async function GET(request: NextRequest) {
   try {
-    const authorizeUrl = buildInstagramAuthorizeUrl();
+    const redirectUri = getRuntimeRedirectUri(request);
+    const authorizeUrl = buildInstagramAuthorizeUrl(redirectUri);
 
     const debug = request.nextUrl.searchParams.get("debug");
 
@@ -13,7 +18,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         ok: true,
         authorizeUrl,
-        redirectUri: process.env.INSTAGRAM_REDIRECT_URI || null,
+        redirectUri,
+        envRedirectUri: process.env.INSTAGRAM_REDIRECT_URI || null,
         appId:
           process.env.INSTAGRAM_CLIENT_ID ||
           process.env.INSTAGRAM_APP_ID ||
@@ -22,7 +28,8 @@ export async function GET(request: NextRequest) {
     }
 
     console.log("[instagram:connect] Redirecting to Instagram OAuth:", {
-      redirectUri: process.env.INSTAGRAM_REDIRECT_URI,
+      redirectUri,
+      envRedirectUri: process.env.INSTAGRAM_REDIRECT_URI || null,
       appId:
         process.env.INSTAGRAM_CLIENT_ID ||
         process.env.INSTAGRAM_APP_ID ||
