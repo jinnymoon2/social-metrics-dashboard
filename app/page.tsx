@@ -15,6 +15,8 @@ export default function Home() {
   const [selectedPlatform, setSelectedPlatform] = useState<Platform | "All">(
     "All"
   );
+  const [isImportingInstagram, setIsImportingInstagram] = useState(false);
+  const [instagramStatus, setInstagramStatus] = useState("");
 
   useEffect(() => {
     const savedPosts = window.localStorage.getItem(STORAGE_KEY);
@@ -26,6 +28,12 @@ export default function Home() {
       } catch {
         setPosts(seedPosts);
       }
+    }
+
+    const params = new URLSearchParams(window.location.search);
+
+    if (params.get("instagram") === "connected") {
+      setInstagramStatus("Instagram connected successfully.");
     }
   }, []);
 
@@ -54,6 +62,36 @@ export default function Home() {
     setSelectedPlatform("All");
   }
 
+  async function handleImportInstagram() {
+    setIsImportingInstagram(true);
+    setInstagramStatus("");
+
+    try {
+      const response = await fetch("/api/instagram/media");
+      const data = await response.json();
+
+      if (!response.ok) {
+        setInstagramStatus(data.error || "Failed to import Instagram posts.");
+        return;
+      }
+
+      const importedPosts = data.posts as SocialPost[];
+
+      setPosts((currentPosts) => {
+        const currentIds = new Set(currentPosts.map((post) => post.id));
+        const newPosts = importedPosts.filter((post) => !currentIds.has(post.id));
+
+        return [...newPosts, ...currentPosts];
+      });
+
+      setInstagramStatus(`Imported ${importedPosts.length} Instagram posts.`);
+    } catch {
+      setInstagramStatus("Failed to import Instagram posts.");
+    } finally {
+      setIsImportingInstagram(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-slate-50 px-5 py-8">
       <div className="mx-auto max-w-7xl">
@@ -67,18 +105,42 @@ export default function Home() {
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
               Manual-first dashboard for Instagram, LinkedIn, X, and OKKY.
-              YouTube is intentionally excluded from this version.
+              Instagram can now be connected directly without Facebook Login.
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={handleResetData}
-            className="w-fit rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm hover:border-slate-400"
-          >
-            Reset sample data
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <a
+              href="/api/instagram/login"
+              className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-slate-800"
+            >
+              Connect Instagram
+            </a>
+
+            <button
+              type="button"
+              onClick={handleImportInstagram}
+              disabled={isImportingInstagram}
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isImportingInstagram ? "Importing..." : "Import Instagram posts"}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleResetData}
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm hover:border-slate-400"
+            >
+              Reset sample data
+            </button>
+          </div>
         </header>
+
+        {instagramStatus ? (
+          <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-700 shadow-sm">
+            {instagramStatus}
+          </section>
+        ) : null}
 
         <section className="mt-8">
           <SummaryPanel posts={filteredPosts} />
@@ -111,9 +173,9 @@ export default function Home() {
         <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 text-sm leading-7 text-slate-600 shadow-sm">
           <h2 className="text-lg font-bold text-slate-950">API notes</h2>
           <p className="mt-2">
-            This MVP stores data in your browser. For automatic syncing later,
-            add platform-specific API routes for Instagram, LinkedIn, and X.
-            OKKY should remain manual unless an official API becomes available.
+            Instagram direct login imports media, captions, links, likes, and
+            comments. Viewer count and deeper insights require insight-specific
+            API calls and eligible permissions.
           </p>
         </section>
       </div>
