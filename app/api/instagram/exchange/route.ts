@@ -11,6 +11,10 @@ type ExchangeRequestBody = {
   code?: string;
 };
 
+function getRuntimeRedirectUri(request: NextRequest) {
+  return new URL("/", request.url).toString();
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as ExchangeRequestBody;
@@ -29,13 +33,19 @@ export async function POST(request: NextRequest) {
     }
 
     const code = rawCode.replace("#_", "").trim();
+    const redirectUri = getRuntimeRedirectUri(request);
 
     console.log("[instagram:exchange] Received code:", {
       hasCode: Boolean(code),
       codeLength: code.length,
+      redirectUri,
+      envRedirectUri: process.env.INSTAGRAM_REDIRECT_URI || null,
     });
 
-    const shortLivedToken = await exchangeCodeForShortLivedToken(code);
+    const shortLivedToken = await exchangeCodeForShortLivedToken(
+      code,
+      redirectUri
+    );
 
     console.log("[instagram:exchange] Short-lived token received:", {
       userId: shortLivedToken.user_id,
