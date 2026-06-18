@@ -22,29 +22,26 @@ export type InstagramProfile = {
   media_count?: number;
 };
 
-export function getInstagramConfig() {
+export function getInstagramConfig(redirectUriOverride?: string) {
   const clientId =
     process.env.INSTAGRAM_CLIENT_ID || process.env.INSTAGRAM_APP_ID;
 
   const clientSecret =
     process.env.INSTAGRAM_CLIENT_SECRET || process.env.INSTAGRAM_APP_SECRET;
 
-  const redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
+  const redirectUri =
+    redirectUriOverride || process.env.INSTAGRAM_REDIRECT_URI;
 
   if (!clientId) {
-    throw new Error(
-      "Missing INSTAGRAM_CLIENT_ID or INSTAGRAM_APP_ID"
-    );
+    throw new Error("Missing INSTAGRAM_CLIENT_ID or INSTAGRAM_APP_ID");
   }
 
   if (!clientSecret) {
-    throw new Error(
-      "Missing INSTAGRAM_CLIENT_SECRET or INSTAGRAM_APP_SECRET"
-    );
+    throw new Error("Missing INSTAGRAM_CLIENT_SECRET or INSTAGRAM_APP_SECRET");
   }
 
   if (!redirectUri) {
-    throw new Error("Missing INSTAGRAM_REDIRECT_URI");
+    throw new Error("Missing Instagram redirect URI");
   }
 
   return {
@@ -54,8 +51,8 @@ export function getInstagramConfig() {
   };
 }
 
-export function buildInstagramAuthorizeUrl() {
-  const { clientId, redirectUri } = getInstagramConfig();
+export function buildInstagramAuthorizeUrl(redirectUriOverride?: string) {
+  const { clientId, redirectUri } = getInstagramConfig(redirectUriOverride);
 
   const params = new URLSearchParams({
     force_reauth: "true",
@@ -72,9 +69,11 @@ export function buildInstagramAuthorizeUrl() {
 }
 
 export async function exchangeCodeForShortLivedToken(
-  code: string
+  code: string,
+  redirectUriOverride?: string
 ): Promise<InstagramTokenResponse> {
-  const { clientId, clientSecret, redirectUri } = getInstagramConfig();
+  const { clientId, clientSecret, redirectUri } =
+    getInstagramConfig(redirectUriOverride);
 
   const body = new URLSearchParams({
     client_id: clientId,
@@ -82,6 +81,12 @@ export async function exchangeCodeForShortLivedToken(
     grant_type: "authorization_code",
     redirect_uri: redirectUri,
     code,
+  });
+
+  console.log("[instagram:token] Exchanging code with redirect URI:", {
+    redirectUri,
+    clientId,
+    codeLength: code.length,
   });
 
   const response = await fetch("https://api.instagram.com/oauth/access_token", {
