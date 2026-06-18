@@ -96,13 +96,15 @@ export default function InstagramConnectionPanel({
 
     hasExchangedCodeRef.current = true;
 
+    const codeFromCallback = initialCode;
+
     async function exchangeCode() {
       try {
         setStatus("connecting");
         setMessage("Connecting Instagram account...");
         setDebugMessage("Received Instagram code from URL. Exchanging token...");
 
-        const cleanCode = initialCode.replace("#_", "").trim();
+        const cleanCode = codeFromCallback.replace("#_", "").trim();
 
         const response = await fetch("/api/instagram/exchange", {
           method: "POST",
