@@ -15,7 +15,9 @@ export default function Home() {
     "All"
   );
   const [isImportingInstagram, setIsImportingInstagram] = useState(false);
-  const [instagramStatus, setInstagramStatus] = useState("Checking Instagram connection...");
+  const [instagramStatus, setInstagramStatus] = useState(
+    "Checking Instagram connection..."
+  );
   const [isInstagramConnected, setIsInstagramConnected] = useState(false);
 
   useEffect(() => {
@@ -30,13 +32,24 @@ export default function Home() {
       }
     }
 
-    checkInstagramStatus();
-
     const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    const error = params.get("error");
+    const errorDescription = params.get("error_description");
 
-    if (params.get("instagram") === "connected") {
-      setInstagramStatus("Instagram OAuth completed. Checking imported account...");
+    if (error || errorDescription) {
+      setInstagramStatus(
+        errorDescription || error || "Instagram authorization failed."
+      );
+      return;
     }
+
+    if (code) {
+      exchangeInstagramCode(code);
+      return;
+    }
+
+    checkInstagramStatus();
   }, []);
 
   useEffect(() => {
@@ -61,6 +74,38 @@ export default function Home() {
     } catch {
       setIsInstagramConnected(false);
       setInstagramStatus("Could not check Instagram connection.");
+    }
+  }
+
+  async function exchangeInstagramCode(code: string) {
+    setInstagramStatus("Finishing Instagram connection...");
+
+    try {
+      const response = await fetch("/api/instagram/exchange", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ code })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setIsInstagramConnected(false);
+        setInstagramStatus(
+          data.details || data.error || "Failed to finish Instagram connection."
+        );
+        return;
+      }
+
+      window.history.replaceState({}, "", "/");
+      setIsInstagramConnected(true);
+      setInstagramStatus(`Instagram connected. User ID: ${data.userId}`);
+      await checkInstagramStatus();
+    } catch {
+      setIsInstagramConnected(false);
+      setInstagramStatus("Failed to finish Instagram connection.");
     }
   }
 
@@ -116,7 +161,7 @@ export default function Home() {
       setInstagramStatus("Failed to import Instagram posts.");
     } finally {
       setIsImportingInstagram(false);
-      checkInstagramStatus();
+      await checkInstagramStatus();
     }
   }
 
