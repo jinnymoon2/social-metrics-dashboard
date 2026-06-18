@@ -123,49 +123,58 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-slate-50 px-5 py-8">
       <div className="mx-auto max-w-7xl">
-        <header className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-sm font-bold uppercase tracking-[0.2em] text-slate-500">
-              Social Metrics Dashboard
-            </p>
-            <h1 className="mt-3 text-4xl font-black tracking-tight text-slate-950 md:text-5xl">
-              Track viewer count and likes across your posts
-            </h1>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-              Connect Instagram directly, then import your real posts. No demo
-              data is shown by default.
-            </p>
-          </div>
+        <header>
+          <p className="text-sm font-bold uppercase tracking-[0.2em] text-slate-500">
+            Social Metrics Dashboard
+          </p>
 
-          <div className="flex flex-wrap gap-3">
-            <a
-              href="/api/instagram/login"
-              className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-slate-800"
-            >
-              Connect Instagram
-            </a>
+          <h1 className="mt-3 max-w-3xl text-4xl font-black tracking-tight text-slate-950 md:text-5xl">
+            Track viewer count and likes across your posts
+          </h1>
 
-            <button
-              type="button"
-              onClick={handleImportInstagram}
-              disabled={isImportingInstagram || !isInstagramConnected}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isImportingInstagram ? "Importing..." : "Import Instagram posts"}
-            </button>
-
-            <button
-              type="button"
-              onClick={handleClearData}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm hover:border-slate-400"
-            >
-              Clear data
-            </button>
-          </div>
+          <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
+            Connect Instagram directly, then import your real posts. No demo
+            data is shown by default.
+          </p>
         </header>
 
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-700 shadow-sm">
-          {instagramStatus}
+        <section className="mt-8 rounded-2xl border-2 border-slate-300 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-xl font-black text-slate-950">
+                Instagram connection
+              </h2>
+              <p className="mt-2 text-sm font-semibold text-slate-600">
+                {instagramStatus}
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <a
+                href="/api/instagram/login"
+                className="inline-flex items-center justify-center rounded-xl bg-black px-6 py-3 text-base font-black text-white shadow-sm hover:bg-slate-800"
+              >
+                Connect Instagram Account
+              </a>
+
+              <button
+                type="button"
+                onClick={handleImportInstagram}
+                disabled={isImportingInstagram || !isInstagramConnected}
+                className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-6 py-3 text-base font-black text-slate-900 shadow-sm hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {isImportingInstagram ? "Importing..." : "Import Instagram Posts"}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleClearData}
+                className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-6 py-3 text-base font-black text-slate-900 shadow-sm hover:border-slate-500"
+              >
+                Clear Data
+              </button>
+            </div>
+          </div>
         </section>
 
         <section className="mt-8">
