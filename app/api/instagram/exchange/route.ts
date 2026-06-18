@@ -1,73 +1,72 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  InstagramTokenResponse,
-  getInstagramConfig
-} from "@/app/lib/instagram/config";
+  exchangeCodeForShortLivedToken,
+  exchangeForLongLivedToken,
+  fetchInstagramProfile,
+} from "@/app/lib/instagram";
+
+export const dynamic = "force-dynamic";
+
+type ExchangeRequestBody = {
+  code?: string;
+};
 
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const code = body.code as string | undefined;
+  try {
+    const body = (await request.json()) as ExchangeRequestBody;
+    const code = body.code;
 
-  if (!code) {
-    return NextResponse.json(
-      { error: "Missing Instagram authorization code." },
-      { status: 400 }
-    );
-  }
-
-  const { appId, appSecret, redirectUri, tokenUrl, appUrl } =
-    getInstagramConfig();
-
-  const formData = new URLSearchParams();
-  formData.set("client_id", appId);
-  formData.set("client_secret", appSecret);
-  formData.set("grant_type", "authorization_code");
-  formData.set("redirect_uri", redirectUri);
-  formData.set("code", code);
-
-  const tokenResponse = await fetch(tokenUrl, {
-    method: "POST",
-    body: formData,
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded"
+    if (!code) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Missing Instagram authorization code",
+        },
+        {
+          status: 400,
+        }
+      );
     }
-  });
 
-  if (!tokenResponse.ok) {
-    const details = await tokenResponse.text();
+    const shortLivedToken = await exchangeCodeForShortLivedToken(code);
+
+    let longLivedToken = null;
+    let profile = null;
+
+    try {
+      longLivedToken = await exchangeForLongLivedToken(
+        shortLivedToken.access_token
+      );
+
+      profile = await fetchInstagramProfile(longLivedToken.access_token);
+    } catch (error) {
+      console.error("Instagram long-lived token/profile step failed:", error);
+    }
+
+    return NextResponse.json({
+      ok: true,
+      connection: {
+        userId: shortLivedToken.user_id,
+        permissions: shortLivedToken.permissions ?? [],
+        shortLivedAccessToken: shortLivedToken.access_token,
+        longLivedAccessToken: longLivedToken?.access_token ?? null,
+        tokenType: longLivedToken?.token_type ?? null,
+        expiresIn: longLivedToken?.expires_in ?? null,
+        profile,
+      },
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unknown Instagram token error";
 
     return NextResponse.json(
       {
-        error: "Failed to exchange Instagram code for access token.",
-        status: tokenResponse.status,
-        details
+        ok: false,
+        error: message,
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
-
-  const token = (await tokenResponse.json()) as InstagramTokenResponse;
-
-  const response = NextResponse.json({
-    connected: true,
-    userId: token.user_id
-  });
-
-  response.cookies.set("instagram_access_token", token.access_token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: appUrl.startsWith("https://"),
-    path: "/",
-    maxAge: 60 * 60
-  });
-
-  response.cookies.set("instagram_user_id", token.user_id, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: appUrl.startsWith("https://"),
-    path: "/",
-    maxAge: 60 * 60
-  });
-
-  return response;
 }
