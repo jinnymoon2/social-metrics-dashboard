@@ -23,16 +23,24 @@ export type InstagramProfile = {
 };
 
 export function getInstagramConfig() {
-  const clientId = process.env.INSTAGRAM_CLIENT_ID;
-  const clientSecret = process.env.INSTAGRAM_CLIENT_SECRET;
+  const clientId =
+    process.env.INSTAGRAM_CLIENT_ID || process.env.INSTAGRAM_APP_ID;
+
+  const clientSecret =
+    process.env.INSTAGRAM_CLIENT_SECRET || process.env.INSTAGRAM_APP_SECRET;
+
   const redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
 
   if (!clientId) {
-    throw new Error("Missing INSTAGRAM_CLIENT_ID");
+    throw new Error(
+      "Missing INSTAGRAM_CLIENT_ID or INSTAGRAM_APP_ID"
+    );
   }
 
   if (!clientSecret) {
-    throw new Error("Missing INSTAGRAM_CLIENT_SECRET");
+    throw new Error(
+      "Missing INSTAGRAM_CLIENT_SECRET or INSTAGRAM_APP_SECRET"
+    );
   }
 
   if (!redirectUri) {
