@@ -1,5 +1,8 @@
 import InstagramConnectionPanel from "@/app/components/InstagramConnectionPanel";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type HomePageProps = {
   searchParams?: Promise<{
     code?: string;
