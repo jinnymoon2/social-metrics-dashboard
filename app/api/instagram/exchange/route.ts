@@ -14,9 +14,9 @@ type ExchangeRequestBody = {
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as ExchangeRequestBody;
-    const code = body.code;
+    const rawCode = body.code;
 
-    if (!code) {
+    if (!rawCode) {
       return NextResponse.json(
         {
           ok: false,
@@ -28,7 +28,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const code = rawCode.replace("#_", "").trim();
+
+    console.log("[instagram:exchange] Received code:", {
+      hasCode: Boolean(code),
+      codeLength: code.length,
+    });
+
     const shortLivedToken = await exchangeCodeForShortLivedToken(code);
+
+    console.log("[instagram:exchange] Short-lived token received:", {
+      userId: shortLivedToken.user_id,
+      hasAccessToken: Boolean(shortLivedToken.access_token),
+    });
 
     let longLivedToken = null;
     let profile = null;
@@ -38,9 +50,19 @@ export async function POST(request: NextRequest) {
         shortLivedToken.access_token
       );
 
+      console.log("[instagram:exchange] Long-lived token received:", {
+        hasAccessToken: Boolean(longLivedToken.access_token),
+        expiresIn: longLivedToken.expires_in,
+      });
+
       profile = await fetchInstagramProfile(longLivedToken.access_token);
+
+      console.log("[instagram:exchange] Profile received:", {
+        username: profile?.username ?? null,
+        accountType: profile?.account_type ?? null,
+      });
     } catch (error) {
-      console.error("Instagram long-lived token/profile step failed:", error);
+      console.error("[instagram:exchange] Long-lived/profile step failed:", error);
     }
 
     return NextResponse.json({
@@ -58,6 +80,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unknown Instagram token error";
+
+    console.error("[instagram:exchange] Token exchange failed:", message);
 
     return NextResponse.json(
       {
