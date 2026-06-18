@@ -25,7 +25,7 @@ export function getInstagramConfig() {
     appSecret,
     redirectUri,
     appUrl,
-    authBaseUrl: "https://api.instagram.com/oauth/authorize",
+    authBaseUrl: "https://www.instagram.com/oauth/authorize",
     tokenUrl: "https://api.instagram.com/oauth/access_token",
     graphBaseUrl: "https://graph.instagram.com"
   };
