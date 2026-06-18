@@ -1,11 +1,2 @@
-{"timestamp":"00:00:00.465","source":"Server","level":"LOG","message":""}
-{"timestamp":"04:37:42.339","source":"Server","level":"LOG","message":"✓ Compiled in 45ms"}
-{"timestamp":"04:47:20.655","source":"Server","level":"WARN","message":"⚠ The \"middleware\" file convention is deprecated. Please use \"proxy\" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy"}
-{"timestamp":"04:47:20.700","source":"Server","level":"LOG","message":"✓ Compiled in 17ms"}
-{"timestamp":"04:47:59.811","source":"Server","level":"LOG","message":"✓ Compiled in 7ms"}
-{"timestamp":"05:12:25.692","source":"Server","level":"LOG","message":"  Reload env: .env.local"}
-{"timestamp":"05:12:42.539","source":"Server","level":"LOG","message":"  Reload env: .env.local"}
-{"timestamp":"05:17:18.030","source":"Server","level":"LOG","message":"  Reload env: .env.local"}
-{"timestamp":"05:17:18.077","source":"Server","level":"LOG","message":"✓ Compiled in 13ms"}
-{"timestamp":"05:20:37.243","source":"Server","level":"LOG","message":"  Reload env: .env.local"}
-{"timestamp":"05:22:39.963","source":"Server","level":"LOG","message":"✓ Compiled in 73ms"}
+{"timestamp":"00:00:00.351","source":"Server","level":"WARN","message":"⚠ The \"middleware\" file convention is deprecated. Please use \"proxy\" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy"}
+{"timestamp":"00:00:00.422","source":"Server","level":"LOG","message":""}

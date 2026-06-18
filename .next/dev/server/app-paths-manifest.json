@@ -1,6 +1,4 @@
 {
-  "/api/instagram/debug/route": "app/api/instagram/debug/route.js",
-  "/api/instagram/login/route": "app/api/instagram/login/route.js",
-  "/api/instagram/status/route": "app/api/instagram/status/route.js",
+  "/api/instagram/connect/route": "app/api/instagram/connect/route.js",
   "/page": "app/page.js"
 }

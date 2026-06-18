@@ -1,7 +1,18 @@
-import { Suspense } from "react";
 import InstagramConnectionPanel from "@/app/components/InstagramConnectionPanel";
 
-export default function HomePage() {
+type HomePageProps = {
+  searchParams?: Promise<{
+    code?: string;
+    error?: string;
+    error_reason?: string;
+    error_description?: string;
+    error_message?: string;
+  }>;
+};
+
+export default async function HomePage({ searchParams }: HomePageProps) {
+  const params = searchParams ? await searchParams : {};
+
   return (
     <main className="page">
       <section className="hero">
@@ -13,9 +24,13 @@ export default function HomePage() {
         </p>
       </section>
 
-      <Suspense fallback={<div className="card">Loading Instagram connection...</div>}>
-        <InstagramConnectionPanel />
-      </Suspense>
+      <InstagramConnectionPanel
+        initialCode={params.code ?? null}
+        initialError={params.error ?? params.error_reason ?? null}
+        initialErrorDescription={
+          params.error_description ?? params.error_message ?? null
+        }
+      />
     </main>
   );
 }
