@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buildInstagramAuthorizeUrl } from "@/app/lib/instagram";
+import {
+  buildInstagramAuthorizeUrl,
+  normalizeInstagramRedirectUri,
+} from "@/app/lib/instagram";
 
 export const dynamic = "force-dynamic";
 
 function getRuntimeRedirectUri(request: NextRequest) {
-  return new URL("/", request.url).toString();
+  return normalizeInstagramRedirectUri(new URL("/", request.url).toString());
 }
 
 export async function GET(request: NextRequest) {
@@ -20,6 +23,9 @@ export async function GET(request: NextRequest) {
         authorizeUrl,
         redirectUri,
         envRedirectUri: process.env.INSTAGRAM_REDIRECT_URI || null,
+        normalizedEnvRedirectUri: process.env.INSTAGRAM_REDIRECT_URI
+          ? normalizeInstagramRedirectUri(process.env.INSTAGRAM_REDIRECT_URI)
+          : null,
         appId:
           process.env.INSTAGRAM_CLIENT_ID ||
           process.env.INSTAGRAM_APP_ID ||

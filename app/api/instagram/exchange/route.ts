@@ -3,6 +3,7 @@ import {
   exchangeCodeForShortLivedToken,
   exchangeForLongLivedToken,
   fetchInstagramProfile,
+  normalizeInstagramRedirectUri,
 } from "@/app/lib/instagram";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ type ExchangeRequestBody = {
 };
 
 function getRuntimeRedirectUri(request: NextRequest) {
-  return new URL("/", request.url).toString();
+  return normalizeInstagramRedirectUri(new URL("/", request.url).toString());
 }
 
 export async function POST(request: NextRequest) {
@@ -40,6 +41,9 @@ export async function POST(request: NextRequest) {
       codeLength: code.length,
       redirectUri,
       envRedirectUri: process.env.INSTAGRAM_REDIRECT_URI || null,
+      normalizedEnvRedirectUri: process.env.INSTAGRAM_REDIRECT_URI
+        ? normalizeInstagramRedirectUri(process.env.INSTAGRAM_REDIRECT_URI)
+        : null,
     });
 
     const shortLivedToken = await exchangeCodeForShortLivedToken(

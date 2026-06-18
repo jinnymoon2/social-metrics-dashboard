@@ -22,6 +22,10 @@ export type InstagramProfile = {
   media_count?: number;
 };
 
+export function normalizeInstagramRedirectUri(uri: string) {
+  return uri.endsWith("/") ? uri.slice(0, -1) : uri;
+}
+
 export function getInstagramConfig(redirectUriOverride?: string) {
   const clientId =
     process.env.INSTAGRAM_CLIENT_ID || process.env.INSTAGRAM_APP_ID;
@@ -29,7 +33,7 @@ export function getInstagramConfig(redirectUriOverride?: string) {
   const clientSecret =
     process.env.INSTAGRAM_CLIENT_SECRET || process.env.INSTAGRAM_APP_SECRET;
 
-  const redirectUri =
+  const rawRedirectUri =
     redirectUriOverride || process.env.INSTAGRAM_REDIRECT_URI;
 
   if (!clientId) {
@@ -40,9 +44,11 @@ export function getInstagramConfig(redirectUriOverride?: string) {
     throw new Error("Missing INSTAGRAM_CLIENT_SECRET or INSTAGRAM_APP_SECRET");
   }
 
-  if (!redirectUri) {
+  if (!rawRedirectUri) {
     throw new Error("Missing Instagram redirect URI");
   }
+
+  const redirectUri = normalizeInstagramRedirectUri(rawRedirectUri);
 
   return {
     clientId,
