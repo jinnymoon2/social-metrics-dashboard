@@ -10,6 +10,61 @@
       "crawledPages": 1,
       "discoveredPosts": 0,
       "posts": []
+    },
+    {
+      "runId": "2026-06-19-1781857966499",
+      "date": "2026-06-19",
+      "startedAt": "2026-06-19T08:32:49.371Z",
+      "sourceUrl": "https://okky.kr/user/199819/articles",
+      "userId": "199819",
+      "crawledPages": 3,
+      "discoveredPosts": 0,
+      "posts": []
+    },
+    {
+      "runId": "2026-06-19-1781857984051",
+      "date": "2026-06-19",
+      "startedAt": "2026-06-19T08:33:12.071Z",
+      "sourceUrl": "https://okky.kr/user/199819/articles/1543469",
+      "userId": "199819",
+      "crawledPages": 4,
+      "discoveredPosts": 2,
+      "posts": [
+        {
+          "url": "https://okky.kr/user/199819/articles/1543469",
+          "okkyId": "1543469",
+          "type": "articles",
+          "title": "AI 때문에 개발자 안망해요",
+          "tags": [],
+          "keywords": [
+            "AI",
+            "개발자",
+            "리액션",
+            "가상화"
+          ],
+          "totalViews": null,
+          "commentsCount": null,
+          "textSample": "추천해요19최고에요4핫하네요1번뜩여요3저자에게 리액션을 보내세요.19추천해요4최고에요1핫하네요3번뜩여요",
+          "fetchedAt": "2026-06-19T08:33:10.381Z"
+        },
+        {
+          "url": "https://okky.kr/user/41659/articles/1536610",
+          "okkyId": "1536610",
+          "type": "articles",
+          "title": "OKKY 지식 카테고리 개편 안내",
+          "tags": [],
+          "keywords": [
+            "OKKY",
+            "리액션",
+            "카테고리 개편",
+            "지식 공유"
+          ],
+          "totalViews": null,
+          "commentsCount": null,
+          "textSample": "추천해요4최고에요1핫하네요1번뜩여요0저자에게 리액션을 보내세요.4추천해요1최고에요1핫하네요0번뜩여요",
+          "fetchedAt": "2026-06-19T08:33:12.070Z"
+        }
+      ]
     }
   ]
 }

@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "okky:analyze": "node scripts/okky-analyze.mjs"
   },
   "dependencies": {
     "cheerio": "^1.2.0",

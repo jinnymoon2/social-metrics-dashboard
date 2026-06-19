@@ -56,6 +56,15 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   type __Unused = __Check
 }
 
+// Validate ../../app/privacy/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/privacy">> = Specific
+  const handler = {} as typeof import("../../app/privacy/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../app/api/debug/instagram/route.ts
 {
   type __IsExpected<Specific extends RouteHandlerConfig<"/api/debug/instagram">> = Specific
@@ -69,6 +78,15 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
 {
   type __IsExpected<Specific extends RouteHandlerConfig<"/api/instagram/callback">> = Specific
   const handler = {} as typeof import("../../app/api/instagram/callback/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../app/api/instagram/complete/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/instagram/complete">> = Specific
+  const handler = {} as typeof import("../../app/api/instagram/complete/route.js")
   type __Check = __IsExpected<typeof handler>
   // @ts-ignore
   type __Unused = __Check
@@ -123,6 +141,15 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
 {
   type __IsExpected<Specific extends RouteHandlerConfig<"/api/instagram/media">> = Specific
   const handler = {} as typeof import("../../app/api/instagram/media/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../app/api/instagram/metrics/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/instagram/metrics">> = Specific
+  const handler = {} as typeof import("../../app/api/instagram/metrics/route.js")
   type __Check = __IsExpected<typeof handler>
   // @ts-ignore
   type __Unused = __Check

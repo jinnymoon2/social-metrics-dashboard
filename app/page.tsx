@@ -1,35 +1,690 @@
-import Dashboard from "@/app/components/Dashboard";
-import { seedPosts } from "@/app/lib/seed-posts";
-import { resolveInstagramRedirectUri } from "@/app/lib/instagram";
+"use client";
 
-type HomeProps = {
-  searchParams?: Promise<{
-    code?: string;
-    error?: string;
-    error_description?: string;
-    instagram?: string;
-  }>;
+import { useEffect, useMemo, useState } from "react";
+
+type PlatformKey = "instagram" | "okky";
+
+type MetricPost = {
+  id?: string;
+  title?: string;
+  url?: string;
+  views?: number;
+  likes?: number;
+  comments?: number;
+  shares?: number;
+  saves?: number;
+  createdAt?: string;
 };
 
-export default async function Home({ searchParams }: HomeProps) {
-  const params = await searchParams;
+type PlatformMetrics = {
+  platform: PlatformKey;
+  profileUrl?: string;
+  username?: string;
+  totalViews: number;
+  totalLikes: number;
+  totalComments: number;
+  totalShares: number;
+  totalSaves: number;
+  postCount: number;
+  engagementRate: number;
+  updatedAt?: string;
+  posts: MetricPost[];
+};
 
-  let instagramRedirectUri = "";
+type InstagramStatus = {
+  connected: boolean;
+  userId?: string | null;
+};
 
-  try {
-    instagramRedirectUri = resolveInstagramRedirectUri();
-  } catch {
-    instagramRedirectUri = "";
+const PLATFORM_CONFIG: Record<
+  PlatformKey,
+  {
+    label: string;
+    description: string;
+    endpoints: string[];
+  }
+> = {
+  instagram: {
+    label: "Instagram",
+    description: "Instagram post and account metrics",
+    endpoints: ["/api/instagram/metrics"],
+  },
+  okky: {
+    label: "OKKY",
+    description: "OKKY article metrics",
+    endpoints: ["/api/okky/metrics", "/api/okky", "/api/metrics/okky"],
+  },
+};
+
+const PLATFORM_ORDER: PlatformKey[] = ["instagram", "okky"];
+
+const LOCKED_INSTAGRAM_METRICS: PlatformMetrics = {
+  platform: "instagram",
+  totalViews: 0,
+  totalLikes: 0,
+  totalComments: 0,
+  totalShares: 0,
+  totalSaves: 0,
+  postCount: 0,
+  engagementRate: 0,
+  updatedAt: undefined,
+  posts: [],
+};
+
+function toNumber(value: unknown): number {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+function formatNumber(value?: number): string {
+  return new Intl.NumberFormat("en-US").format(toNumber(value));
+}
+
+function formatPercent(value?: number): string {
+  return `${toNumber(value).toFixed(2)}%`;
+}
+
+function normalizePost(post: any, index: number): MetricPost {
+  return {
+    id: String(post.id ?? post.url ?? post.link ?? index),
+    title:
+      post.title ??
+      post.caption ??
+      post.text ??
+      post.name ??
+      `Content ${index + 1}`,
+    url: post.url ?? post.link ?? post.permalink,
+    views: toNumber(post.views ?? post.viewCount ?? post.impressions ?? post.reach),
+    likes: toNumber(post.likes ?? post.likeCount),
+    comments: toNumber(post.comments ?? post.commentCount),
+    shares: toNumber(post.shares ?? post.shareCount),
+    saves: toNumber(post.saves ?? post.saveCount),
+    createdAt: post.createdAt ?? post.created_time ?? post.date ?? post.publishedAt,
+  };
+}
+
+function normalizeMetrics(platform: PlatformKey, rawData: any): PlatformMetrics {
+  const data = rawData?.metrics ?? rawData?.data ?? rawData ?? {};
+
+  const rawPosts =
+    data.posts ??
+    data.items ??
+    data.articles ??
+    data.results ??
+    rawData?.posts ??
+    rawData?.items ??
+    rawData?.articles ??
+    [];
+
+  const posts = Array.isArray(rawPosts)
+    ? rawPosts.map((post, index) => normalizePost(post, index))
+    : [];
+
+  const totalViews =
+    data.totalViews ??
+    data.views ??
+    data.viewCount ??
+    data.impressions ??
+    posts.reduce((sum, post) => sum + toNumber(post.views), 0);
+
+  const totalLikes =
+    data.totalLikes ??
+    data.likes ??
+    data.likeCount ??
+    posts.reduce((sum, post) => sum + toNumber(post.likes), 0);
+
+  const totalComments =
+    data.totalComments ??
+    data.comments ??
+    data.commentCount ??
+    posts.reduce((sum, post) => sum + toNumber(post.comments), 0);
+
+  const totalShares =
+    data.totalShares ??
+    data.shares ??
+    data.shareCount ??
+    posts.reduce((sum, post) => sum + toNumber(post.shares), 0);
+
+  const totalSaves =
+    data.totalSaves ??
+    data.saves ??
+    data.saveCount ??
+    posts.reduce((sum, post) => sum + toNumber(post.saves), 0);
+
+  const engagementRate =
+    data.engagementRate ??
+    data.engagement ??
+    (toNumber(totalViews) > 0
+      ? ((toNumber(totalLikes) + toNumber(totalComments) + toNumber(totalShares) + toNumber(totalSaves)) /
+          toNumber(totalViews)) *
+        100
+      : 0);
+
+  return {
+    platform,
+    profileUrl: data.profileUrl ?? data.profile_url ?? data.url,
+    username: data.username ?? data.handle ?? data.account,
+    totalViews: toNumber(totalViews),
+    totalLikes: toNumber(totalLikes),
+    totalComments: toNumber(totalComments),
+    totalShares: toNumber(totalShares),
+    totalSaves: toNumber(totalSaves),
+    postCount: toNumber(data.postCount ?? data.postsCount ?? data.count ?? posts.length),
+    engagementRate: toNumber(engagementRate),
+    updatedAt: data.updatedAt ?? data.syncedAt ?? rawData?.updatedAt ?? rawData?.syncedAt,
+    posts,
+  };
+}
+
+async function fetchPlatformMetrics(platform: PlatformKey): Promise<PlatformMetrics> {
+  const config = PLATFORM_CONFIG[platform];
+  let lastError = "";
+
+  for (const endpoint of config.endpoints) {
+    try {
+      const response = await fetch(endpoint, {
+        cache: "no-store",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        lastError = data?.error || `${endpoint} returned ${response.status}`;
+        continue;
+      }
+
+      return normalizeMetrics(platform, data);
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : `Failed to fetch ${endpoint}`;
+    }
+  }
+
+  throw new Error(lastError || `Could not load ${config.label} metrics.`);
+}
+
+async function getInstagramStatus(): Promise<InstagramStatus> {
+  const response = await fetch("/api/instagram/status", {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    return {
+      connected: false,
+      userId: null,
+    };
+  }
+
+  return response.json();
+}
+
+async function completeInstagramOAuth(code: string, state: string) {
+  const response = await fetch("/api/instagram/complete", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "same-origin",
+    body: JSON.stringify({
+      code,
+      state,
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    throw new Error(data?.error || "Instagram login failed.");
+  }
+
+  return data;
+}
+
+export default function HomePage() {
+  const [activePlatform, setActivePlatform] = useState<PlatformKey>("instagram");
+  const [isCompletingOAuth, setIsCompletingOAuth] = useState(false);
+  const [instagramStatus, setInstagramStatus] = useState<InstagramStatus>({
+    connected: false,
+    userId: null,
+  });
+
+  const [metrics, setMetrics] = useState<Record<PlatformKey, PlatformMetrics | null>>({
+    instagram: null,
+    okky: null,
+  });
+
+  const [loading, setLoading] = useState<Record<PlatformKey, boolean>>({
+    instagram: false,
+    okky: false,
+  });
+
+  const [errors, setErrors] = useState<Record<PlatformKey, string | null>>({
+    instagram: null,
+    okky: null,
+  });
+
+  async function loadPlatform(platform: PlatformKey) {
+    setLoading((current) => ({ ...current, [platform]: true }));
+    setErrors((current) => ({ ...current, [platform]: null }));
+
+    try {
+      const result = await fetchPlatformMetrics(platform);
+      setMetrics((current) => ({ ...current, [platform]: result }));
+    } catch (error) {
+      setErrors((current) => ({
+        ...current,
+        [platform]: error instanceof Error ? error.message : "Failed to load metrics.",
+      }));
+    } finally {
+      setLoading((current) => ({ ...current, [platform]: false }));
+    }
+  }
+
+  async function refreshInstagramStatus() {
+    const status = await getInstagramStatus();
+    setInstagramStatus(status);
+    return status;
+  }
+
+  function connectInstagramInPopup() {
+    const width = 560;
+    const height = 720;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+
+    const popup = window.open(
+      "/api/instagram/login",
+      "instagram-login",
+      `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`,
+    );
+
+    if (!popup) {
+      window.location.href = "/api/instagram/login";
+    }
+  }
+
+  async function disconnectInstagram() {
+    await fetch("/api/instagram/logout", {
+      method: "POST",
+    });
+
+    setInstagramStatus({
+      connected: false,
+      userId: null,
+    });
+
+    setMetrics((current) => ({
+      ...current,
+      instagram: null,
+    }));
+
+    setErrors((current) => ({
+      ...current,
+      instagram: null,
+    }));
+  }
+
+  useEffect(() => {
+    async function handleOAuthRedirectInPopup() {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+      const state = params.get("state");
+      const error = params.get("error") || params.get("error_reason");
+
+      const isPopup = Boolean(window.opener);
+
+      if (!isPopup || (!code && !error)) return;
+
+      setIsCompletingOAuth(true);
+
+      try {
+        if (error) {
+          throw new Error(params.get("error_description") || error);
+        }
+
+        if (!code || !state) {
+          throw new Error("Missing Instagram authorization response.");
+        }
+
+        await completeInstagramOAuth(code, state);
+
+        window.opener.postMessage(
+          {
+            source: "social-metrics-dashboard",
+            provider: "instagram",
+            status: "success",
+          },
+          window.location.origin,
+        );
+
+        window.close();
+      } catch (oauthError) {
+        window.opener.postMessage(
+          {
+            source: "social-metrics-dashboard",
+            provider: "instagram",
+            status: "error",
+            message:
+              oauthError instanceof Error
+                ? oauthError.message
+                : "Instagram login failed.",
+          },
+          window.location.origin,
+        );
+
+        window.close();
+      }
+    }
+
+    handleOAuthRedirectInPopup();
+  }, []);
+
+  useEffect(() => {
+    if (isCompletingOAuth) return;
+
+    async function initialize() {
+      const status = await refreshInstagramStatus();
+
+      if (status.connected) {
+        loadPlatform("instagram");
+      }
+
+      loadPlatform("okky");
+    }
+
+    initialize();
+  }, [isCompletingOAuth]);
+
+  useEffect(() => {
+    function handleMessage(event: MessageEvent) {
+      if (event.origin !== window.location.origin) return;
+
+      const data = event.data;
+
+      if (
+        data?.source === "social-metrics-dashboard" &&
+        data?.provider === "instagram"
+      ) {
+        if (data.status === "success") {
+          refreshInstagramStatus().then((status) => {
+            if (status.connected) {
+              loadPlatform("instagram");
+              setActivePlatform("instagram");
+            }
+          });
+        }
+
+        if (data.status === "error") {
+          setErrors((current) => ({
+            ...current,
+            instagram: data.message || "Instagram login failed.",
+          }));
+        }
+      }
+    }
+
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
+
+  useEffect(() => {
+    if (activePlatform === "instagram" && instagramStatus.connected && !metrics.instagram) {
+      loadPlatform("instagram");
+    }
+
+    if (activePlatform === "okky" && !metrics.okky) {
+      loadPlatform("okky");
+    }
+  }, [activePlatform, instagramStatus.connected]);
+
+  const activeConfig = PLATFORM_CONFIG[activePlatform];
+  const activeMetrics =
+    activePlatform === "instagram" && !instagramStatus.connected
+      ? LOCKED_INSTAGRAM_METRICS
+      : metrics[activePlatform];
+
+  const activeLoading = loading[activePlatform];
+  const activeError = errors[activePlatform];
+
+  const tablePosts = useMemo(() => {
+    return activeMetrics?.posts ?? [];
+  }, [activeMetrics]);
+
+  const isInstagramLocked =
+    activePlatform === "instagram" && !instagramStatus.connected;
+
+  if (isCompletingOAuth) {
+    return (
+      <main className="socialOAuthFinishing">
+        <section>
+          <p className="socialEyebrow">Instagram Connection</p>
+          <h1>Connecting Instagram...</h1>
+          <p>This popup will close automatically. Metrics will load in the dashboard behind it.</p>
+        </section>
+      </main>
+    );
   }
 
   return (
-    <Dashboard
-      initialPosts={seedPosts}
-      initialCode={params?.code || null}
-      initialError={params?.error || null}
-      initialErrorDescription={params?.error_description || null}
-      instagramRedirectUri={instagramRedirectUri}
-      justConnectedParam={params?.instagram || null}
-    />
+    <main className="socialDashboardShell">
+      <aside className="socialSidebar">
+        <div className="socialSidebarBrand">
+          <h1>Social Metrics</h1>
+          <p>Instagram and OKKY only</p>
+        </div>
+
+        <nav className="socialSidebarTabs">
+          {PLATFORM_ORDER.map((platform) => {
+            const config = PLATFORM_CONFIG[platform];
+            const isActive = activePlatform === platform;
+
+            return (
+              <button
+                key={platform}
+                type="button"
+                onClick={() => setActivePlatform(platform)}
+                className={isActive ? "socialSidebarTab active" : "socialSidebarTab"}
+              >
+                <span>{config.label}</span>
+                <small>{config.description}</small>
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
+
+      <section className="socialDashboardMain">
+        <header className="socialDashboardHeader">
+          <div>
+            <p className="socialEyebrow">Platform</p>
+            <h2>{activeConfig.label}</h2>
+            <p>{activeConfig.description}</p>
+          </div>
+
+          <div className="socialHeaderActions">
+            {activePlatform === "instagram" && !instagramStatus.connected && (
+              <button
+                type="button"
+                onClick={connectInstagramInPopup}
+                className="socialPrimaryButton"
+              >
+                Connect Instagram
+              </button>
+            )}
+
+            {activePlatform === "instagram" && instagramStatus.connected && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => loadPlatform("instagram")}
+                  className="socialSecondaryButton"
+                >
+                  Refresh
+                </button>
+                <button
+                  type="button"
+                  onClick={disconnectInstagram}
+                  className="socialSecondaryButton"
+                >
+                  Disconnect
+                </button>
+              </>
+            )}
+
+            {activePlatform === "okky" && (
+              <button
+                type="button"
+                onClick={() => loadPlatform("okky")}
+                className="socialSecondaryButton"
+              >
+                Refresh
+              </button>
+            )}
+
+            {activeMetrics?.profileUrl && (
+              <a
+                href={activeMetrics.profileUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="socialProfileButton"
+              >
+                Open profile
+              </a>
+            )}
+          </div>
+        </header>
+
+        {isInstagramLocked && (
+          <div className="socialConnectBanner">
+            <div>
+              <strong>Connect Instagram to unlock real metrics.</strong>
+              <p>
+                Login opens in a popup. After connection, the popup closes and metrics
+                load in this dashboard window.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={connectInstagramInPopup}
+              className="socialPrimaryButton"
+            >
+              Connect Instagram
+            </button>
+          </div>
+        )}
+
+        {activeLoading && (
+          <div className="socialStateCard">
+            Loading {activeConfig.label} metrics...
+          </div>
+        )}
+
+        {!activeLoading && activeError && (
+          <div className="socialStateCard error">
+            <strong>Failed to load {activeConfig.label} metrics.</strong>
+            <p>{activeError}</p>
+          </div>
+        )}
+
+        {!activeLoading && !activeError && activeMetrics && (
+          <>
+            <section className={isInstagramLocked ? "socialMetricGrid locked" : "socialMetricGrid"}>
+              <MetricCard label="Total views" value={formatNumber(activeMetrics.totalViews)} locked={isInstagramLocked} />
+              <MetricCard label="Total likes" value={formatNumber(activeMetrics.totalLikes)} locked={isInstagramLocked} />
+              <MetricCard label="Comments" value={formatNumber(activeMetrics.totalComments)} locked={isInstagramLocked} />
+              <MetricCard label="Posts" value={formatNumber(activeMetrics.postCount)} locked={isInstagramLocked} />
+              <MetricCard label="Shares" value={formatNumber(activeMetrics.totalShares)} locked={isInstagramLocked} />
+              <MetricCard label="Saves" value={formatNumber(activeMetrics.totalSaves)} locked={isInstagramLocked} />
+              <MetricCard label="Engagement rate" value={formatPercent(activeMetrics.engagementRate)} locked={isInstagramLocked} />
+              <MetricCard
+                label="Updated"
+                value={
+                  activeMetrics.updatedAt
+                    ? new Date(activeMetrics.updatedAt).toLocaleString()
+                    : isInstagramLocked
+                      ? "Connect required"
+                      : "Unknown"
+                }
+                locked={isInstagramLocked}
+              />
+            </section>
+
+            <section className={isInstagramLocked ? "socialTableCard locked" : "socialTableCard"}>
+              <div className="socialTableHeader">
+                <div>
+                  <h3>Content performance</h3>
+                  <p>Latest {activeConfig.label} posts/articles</p>
+                </div>
+              </div>
+
+              <div className="socialTableWrap">
+                <table className="socialTable">
+                  <thead>
+                    <tr>
+                      <th>Title</th>
+                      <th>Views</th>
+                      <th>Likes</th>
+                      <th>Comments</th>
+                      <th>Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tablePosts.length > 0 ? (
+                      tablePosts.map((post, index) => (
+                        <tr key={post.id ?? index}>
+                          <td>
+                            {post.url ? (
+                              <a href={post.url} target="_blank" rel="noreferrer">
+                                {post.title || "Untitled"}
+                              </a>
+                            ) : (
+                              post.title || "Untitled"
+                            )}
+                          </td>
+                          <td>{formatNumber(post.views)}</td>
+                          <td>{formatNumber(post.likes)}</td>
+                          <td>{formatNumber(post.comments)}</td>
+                          <td>
+                            {post.createdAt
+                              ? new Date(post.createdAt).toLocaleDateString()
+                              : "-"}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className="socialEmptyCell">
+                          {isInstagramLocked
+                            ? "Connect Instagram to load your real post metrics."
+                            : "No content metrics found."}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </>
+        )}
+      </section>
+    </main>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  locked = false,
+}: {
+  label: string;
+  value: string;
+  locked?: boolean;
+}) {
+  return (
+    <article className="socialMetricCard">
+      <p>{label}</p>
+      <strong>{locked ? "—" : value}</strong>
+      {locked && <small>Connect required</small>}
+    </article>
   );
 }
