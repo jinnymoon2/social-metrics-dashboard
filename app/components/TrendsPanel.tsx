@@ -10,6 +10,7 @@ import {
 import { SocialPost } from "@/app/lib/types";
 
 type TrendMetric = "views" | "likes" | "comments" | "shares";
+type SmoothingMode = "raw" | "smooth";
 
 type MetricOption = {
   id: TrendMetric;
@@ -23,8 +24,6 @@ const METRIC_OPTIONS: MetricOption[] = [
   { id: "comments", label: "Comments", color: "#0891b2" },
   { id: "shares", label: "Shares", color: "#ca8a04" }
 ];
-
-type SmoothingMode = "raw" | "smooth";
 
 const SMOOTH_OPTIONS: Array<{ id: SmoothingMode; label: string }> = [
   { id: "raw", label: "Daily" },
@@ -46,23 +45,25 @@ const PADDING_Y = 28;
 function formatShortDate(value: string): string {
   const parts = value.split("-");
   if (parts.length !== 3) return value;
-  return parts[1] + "/" + parts[2];
+  return `${parts[1]}/${parts[2]}`;
 }
 
 function formatCompact(value: number): string {
   if (!Number.isFinite(value)) return "0";
+
   const abs = Math.abs(value);
-  if (abs >= 1000000) return (value / 1000000).toFixed(1) + "M";
-  if (abs >= 1000) return (value / 1000).toFixed(1) + "K";
+  if (abs >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
   if (abs >= 10) return value.toFixed(0);
+
   return value.toFixed(1);
 }
 
 export default function TrendsPanel({
   posts,
-  title,
-  subtitle,
-  emptyMessage
+  title = "Performance over time",
+  subtitle = "Daily totals across all tracked posts.",
+  emptyMessage = "Add posts with a published date to see trends."
 }: TrendsPanelProps) {
   const [metric, setMetric] = useState<TrendMetric>("views");
   const [smoothing, setSmoothing] = useState<SmoothingMode>("raw");
@@ -70,21 +71,21 @@ export default function TrendsPanel({
   const daily = useMemo(() => aggregateDailyMetrics(posts), [posts]);
   const activeOption =
     METRIC_OPTIONS.find((option) => option.id === metric) || METRIC_OPTIONS[0];
-  const activeColor = activeOption.color;
 
   const seriesValues = useMemo(() => {
     const values = daily.map((point) => point[metric]);
     return smoothing === "smooth" ? smoothSeries(values, 7) : values;
   }, [daily, metric, smoothing]);
 
-  const totals = useMemo(() => {
-    return {
+  const totals = useMemo(
+    () => ({
       views: daily.reduce((sum, point) => sum + point.views, 0),
       likes: daily.reduce((sum, point) => sum + point.likes, 0),
       comments: daily.reduce((sum, point) => sum + point.comments, 0),
       shares: daily.reduce((sum, point) => sum + point.shares, 0)
-    };
-  }, [daily]);
+    }),
+    [daily]
+  );
 
   if (daily.length === 0) {
     return (
@@ -92,24 +93,19 @@ export default function TrendsPanel({
         <div className="cardHeader">
           <div>
             <p className="eyebrow">Trends</p>
-            <h2>{title || "Performance over time"}</h2>
+            <h2>{title}</h2>
           </div>
           <span className="statusBadge idle">No data</span>
         </div>
-        <p className="description">
-          {emptyMessage || "Add posts with a published date to see views, likes, comments, and shares trend across time."}
-        </p>
+        <p className="description">{emptyMessage}</p>
       </section>
     );
   }
 
-  const peak = (() => {
-    let peakIndex = 0;
-    for (let i = 1; i < daily.length; i += 1) {
-      if (daily[i][metric] > daily[peakIndex][metric]) peakIndex = i;
-    }
-    return { point: daily[peakIndex], value: daily[peakIndex][metric] };
-  })();
+  const peak = daily.reduce(
+    (best, point) => (point[metric] > best[metric] ? point : best),
+    daily[0]
+  );
 
   const maxValue = Math.max(1, ...seriesValues);
   const innerWidth = CHART_WIDTH - PADDING_X * 2;
@@ -120,6 +116,7 @@ export default function TrendsPanel({
     const point = daily[index];
     const x = PADDING_X + index * stepX;
     const y = CHART_HEIGHT - PADDING_Y - (value / maxValue) * innerHeight;
+
     return {
       x,
       y,
@@ -134,75 +131,87 @@ export default function TrendsPanel({
   });
 
   const linePath = points
-    .map((point, index) =>
-      (index === 0 ? "M" : "L") + point.x.toFixed(1) + "," + point.y.toFixed(1)
+    .map(
+      (point, index) =>
+        `${index === 0 ? "M" : "L"}${point.x.toFixed(1)},${point.y.toFixed(1)}`
     )
     .join(" ");
 
-  const areaPath =
-    linePath +
-    " L" + points[points.length - 1].x.toFixed(1) +
-    "," + (CHART_HEIGHT - PADDING_Y).toFixed(1) +
-    " L" + points[0].x.toFixed(1) +
-    "," + (CHART_HEIGHT - PADDING_Y).toFixed(1) +
-    " Z";
+  const areaPath = `${linePath} L${points[
+    points.length - 1
+  ].x.toFixed(1)},${(CHART_HEIGHT - PADDING_Y).toFixed(1)} L${points[0].x.toFixed(
+    1
+  )},${(CHART_HEIGHT - PADDING_Y).toFixed(1)} Z`;
 
-  const yAxisTicks = 4;
-  const xTickIndices = (() => {
-    if (daily.length <= 6) return daily.map((_, index) => index);
-    const step = Math.ceil(daily.length / 6);
-    const indices: number[] = [];
-    for (let i = 0; i < daily.length; i += step) indices.push(i);
-    if (indices[indices.length - 1] !== daily.length - 1) {
-      indices.push(daily.length - 1);
-    }
-    return indices;
-  })();
+  const xTickIndices =
+    daily.length <= 6
+      ? daily.map((_, index) => index)
+      : Array.from(
+          new Set([
+            ...daily
+              .map((_, index) => index)
+              .filter((index) => index % Math.ceil(daily.length / 6) === 0),
+            daily.length - 1
+          ])
+        );
 
   return (
     <section className="card">
       <div className="cardHeader">
         <div>
           <p className="eyebrow">Trends</p>
-          <h2>Performance over time</h2>
+          <h2>{title}</h2>
         </div>
+
         <span className="statusBadge connected">
           <TrendingUp size={14} style={{ marginRight: 6 }} />
-          {daily.length === 1 ? "1 day" : daily.length + " days"}
+          {daily.length === 1 ? "1 day" : `${daily.length} days`}
         </span>
       </div>
 
-      <p className="description">
-        Daily totals across all tracked posts. Toggle a metric to switch the trend line, or switch to a 7-day moving average to smooth single-day spikes.
-      </p>
+      <p className="description">{subtitle}</p>
 
       <div className="chartControls">
         <div className="chartControlGroup">
           {METRIC_OPTIONS.map((option) => {
             const isActive = metric === option.id;
+
             return (
               <button
                 key={option.id}
                 type="button"
                 onClick={() => setMetric(option.id)}
-                className={"chartControlButton" + (isActive ? " is-active" : "")}
-                style={isActive ? { borderColor: option.color, color: option.color, background: option.color + "14" } : undefined}
+                className={`chartControlButton${isActive ? " is-active" : ""}`}
+                style={
+                  isActive
+                    ? {
+                        borderColor: option.color,
+                        color: option.color,
+                        background: `${option.color}14`
+                      }
+                    : undefined
+                }
               >
-                <span className="chartControlDot" style={{ background: option.color }} />
+                <span
+                  className="chartControlDot"
+                  style={{ background: option.color }}
+                />
                 {option.label}
               </button>
             );
           })}
         </div>
+
         <div className="chartControlGroup">
           {SMOOTH_OPTIONS.map((option) => {
             const isActive = smoothing === option.id;
+
             return (
               <button
                 key={option.id}
                 type="button"
                 onClick={() => setSmoothing(option.id)}
-                className={"chartControlButton" + (isActive ? " is-active" : "")}
+                className={`chartControlButton${isActive ? " is-active" : ""}`}
               >
                 {option.label}
               </button>
@@ -216,34 +225,42 @@ export default function TrendsPanel({
           <span>Total {activeOption.label.toLowerCase()}</span>
           <strong>{formatNumber(totals[metric])}</strong>
         </div>
+
         <div className="chartStat">
           <span>Daily average</span>
           <strong>{formatNumber(Math.round(totals[metric] / daily.length))}</strong>
         </div>
+
         <div className="chartStat">
           <span>Peak day</span>
-          <strong>{formatShortDate(peak.point.date) + " · " + formatCompact(peak.value)}</strong>
+          <strong>
+            {formatShortDate(peak.date)} · {formatCompact(peak[metric])}
+          </strong>
         </div>
+
         <div className="chartStat">
           <span>Posts</span>
-          <strong>{formatNumber(daily.reduce((sum, point) => sum + point.posts, 0))}</strong>
+          <strong>
+            {formatNumber(daily.reduce((sum, point) => sum + point.posts, 0))}
+          </strong>
         </div>
       </div>
 
       <div className="chartWrapper">
         <svg
-          viewBox={"0 0 " + CHART_WIDTH + " " + CHART_HEIGHT}
+          viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
           role="img"
-          aria-label={"Trend chart for " + metric}
+          aria-label={`Trend chart for ${metric}`}
           preserveAspectRatio="none"
           className="chartSvg"
         >
-          {Array.from({ length: yAxisTicks + 1 }).map((_, index) => {
-            const ratio = index / yAxisTicks;
+          {Array.from({ length: 5 }).map((_, index) => {
+            const ratio = index / 4;
             const y = CHART_HEIGHT - PADDING_Y - ratio * innerHeight;
             const value = ratio * maxValue;
+
             return (
-              <g key={"y-" + index}>
+              <g key={`y-${index}`}>
                 <line
                   x1={PADDING_X}
                   x2={CHART_WIDTH - PADDING_X}
@@ -263,11 +280,11 @@ export default function TrendsPanel({
             );
           })}
 
-          <path d={areaPath} fill={activeColor} fillOpacity="0.12" />
+          <path d={areaPath} fill={activeOption.color} fillOpacity="0.12" />
           <path
             d={linePath}
             fill="none"
-            stroke={activeColor}
+            stroke={activeOption.color}
             strokeWidth="2.5"
             strokeLinejoin="round"
             strokeLinecap="round"
@@ -275,21 +292,23 @@ export default function TrendsPanel({
 
           {points.map((point, index) => (
             <circle
-              key={"point-" + index}
+              key={`point-${index}`}
               cx={point.x}
               cy={point.y}
               r="3.5"
               fill="white"
-              stroke={activeColor}
+              stroke={activeOption.color}
               strokeWidth="2"
             >
               <title>
                 {[
-                  point.label + " · " + point.posts + " " + (point.posts === 1 ? "post" : "posts"),
-                  "Views: " + formatNumber(point.views),
-                  "Likes: " + formatNumber(point.likes),
-                  "Comments: " + formatNumber(point.comments),
-                  "Shares: " + formatNumber(point.shares)
+                  `${point.label} · ${point.posts} ${
+                    point.posts === 1 ? "post" : "posts"
+                  }`,
+                  `Views: ${formatNumber(point.views)}`,
+                  `Likes: ${formatNumber(point.likes)}`,
+                  `Comments: ${formatNumber(point.comments)}`,
+                  `Shares: ${formatNumber(point.shares)}`
                 ].join("\n")}
               </title>
             </circle>
@@ -297,7 +316,7 @@ export default function TrendsPanel({
 
           {xTickIndices.map((index) => (
             <text
-              key={"x-" + index}
+              key={`x-${index}`}
               x={PADDING_X + index * stepX}
               y={CHART_HEIGHT - 6}
               className="chartAxisLabel"

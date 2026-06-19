@@ -1,7 +1,9 @@
+import { SocialPost } from "@/app/lib/types";
+
 export type InstagramTokenResponse = {
   access_token: string;
-  user_id: number;
-  permissions?: string[];
+  user_id: number | string;
+  permissions?: string[] | string;
 };
 
 export type InstagramLongLivedTokenResponse = {
@@ -22,27 +24,33 @@ export type InstagramProfile = {
   media_count?: number;
 };
 
-// Returns the redirect URI exactly as configured. Do not strip the trailing slash,
-// since Meta OAuth flow performs an exact, case-sensitive comparison with the
-// redirect URI registered for the app.
-export function resolveInstagramRedirectUri(redirectUriOverride?: string): string {
-  const fromOverride = redirectUriOverride && redirectUriOverride.trim();
-  if (fromOverride) {
-    return fromOverride;
-  }
+export type InstagramMediaItem = {
+  id: string;
+  caption?: string;
+  media_type?: string;
+  media_url?: string;
+  permalink?: string;
+  timestamp?: string;
+  username?: string;
+  like_count?: number;
+  comments_count?: number;
+};
 
-  const fromEnv = process.env.INSTAGRAM_REDIRECT_URI && process.env.INSTAGRAM_REDIRECT_URI.trim();
-  if (fromEnv) {
-    return fromEnv;
-  }
+export function resolveInstagramRedirectUri(
+  redirectUriOverride?: string
+): string {
+  const fromOverride = redirectUriOverride?.trim();
+  if (fromOverride) return fromOverride;
 
-  throw new Error("Missing Instagram redirect URI");
+  const fromEnv = process.env.INSTAGRAM_REDIRECT_URI?.trim();
+  if (fromEnv) return fromEnv;
+
+  throw new Error("Missing INSTAGRAM_REDIRECT_URI");
 }
 
 export function getInstagramConfig(redirectUriOverride?: string) {
   const clientId =
     process.env.INSTAGRAM_CLIENT_ID || process.env.INSTAGRAM_APP_ID;
-
   const clientSecret =
     process.env.INSTAGRAM_CLIENT_SECRET || process.env.INSTAGRAM_APP_SECRET;
 
@@ -54,16 +62,14 @@ export function getInstagramConfig(redirectUriOverride?: string) {
     throw new Error("Missing INSTAGRAM_CLIENT_SECRET or INSTAGRAM_APP_SECRET");
   }
 
-  const redirectUri = resolveInstagramRedirectUri(redirectUriOverride);
-
   return {
     clientId,
     clientSecret,
-    redirectUri
+    redirectUri: resolveInstagramRedirectUri(redirectUriOverride)
   };
 }
 
-export function buildInstagramAuthorizeUrl(redirectUriOverride?: string) {
+export function buildInstagramAuthorizeUrl(redirectUriOverride?: string): string {
   const { clientId, redirectUri } = getInstagramConfig(redirectUriOverride);
 
   const params = new URLSearchParams({
@@ -73,14 +79,31 @@ export function buildInstagramAuthorizeUrl(redirectUriOverride?: string) {
     response_type: "code",
     scope: [
       "instagram_business_basic",
-      "instagram_business_manage_messages",
-      "instagram_business_manage_comments",
-      "instagram_business_content_publish",
       "instagram_business_manage_insights"
     ].join(",")
   });
 
   return "https://www.instagram.com/oauth/authorize?" + params.toString();
+}
+
+async function parseInstagramResponse<T>(
+  response: Response,
+  fallbackMessage: string
+): Promise<T> {
+  const text = await response.text();
+
+  let data: unknown = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
+  }
+
+  if (!response.ok) {
+    throw new Error(fallbackMessage + ": " + JSON.stringify(data));
+  }
+
+  return data as T;
 }
 
 export async function exchangeCodeForShortLivedToken(
@@ -98,12 +121,6 @@ export async function exchangeCodeForShortLivedToken(
     code
   });
 
-  console.log("[instagram:token] Exchanging code with redirect URI:", {
-    redirectUri,
-    clientId,
-    codeLength: code.length
-  });
-
   const response = await fetch("https://api.instagram.com/oauth/access_token", {
     method: "POST",
     headers: {
@@ -113,13 +130,10 @@ export async function exchangeCodeForShortLivedToken(
     cache: "no-store"
   });
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error("Token exchange failed: " + JSON.stringify(data));
-  }
-
-  return data as InstagramTokenResponse;
+  return parseInstagramResponse<InstagramTokenResponse>(
+    response,
+    "Token exchange failed"
+  );
 }
 
 export async function exchangeForLongLivedToken(
@@ -141,32 +155,27 @@ export async function exchangeForLongLivedToken(
     }
   );
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error("Long-lived token exchange failed: " + JSON.stringify(data));
-  }
-
-  return data as InstagramLongLivedTokenResponse;
+  return parseInstagramResponse<InstagramLongLivedTokenResponse>(
+    response,
+    "Long-lived token exchange failed"
+  );
 }
 
 export async function fetchInstagramProfile(
   accessToken: string
 ): Promise<InstagramProfile | null> {
-  const fields = [
-    "id",
-    "user_id",
-    "username",
-    "name",
-    "account_type",
-    "profile_picture_url",
-    "followers_count",
-    "follows_count",
-    "media_count"
-  ].join(",");
-
   const params = new URLSearchParams({
-    fields,
+    fields: [
+      "id",
+      "user_id",
+      "username",
+      "name",
+      "account_type",
+      "profile_picture_url",
+      "followers_count",
+      "follows_count",
+      "media_count"
+    ].join(","),
     access_token: accessToken
   });
 
@@ -178,12 +187,113 @@ export async function fetchInstagramProfile(
     }
   );
 
-  const data = await response.json();
+  if (!response.ok) return null;
+  return response.json() as Promise<InstagramProfile>;
+}
 
-  if (!response.ok) {
-    console.error("Instagram profile fetch failed:", data);
-    return null;
+async function fetchMediaViews(
+  mediaId: string,
+  accessToken: string
+): Promise<number> {
+  const metricSets = [
+    ["views"],
+    ["impressions"],
+    ["reach"],
+    ["plays"]
+  ];
+
+  for (const metrics of metricSets) {
+    const params = new URLSearchParams({
+      metric: metrics.join(","),
+      access_token: accessToken
+    });
+
+    try {
+      const response = await fetch(
+        `https://graph.instagram.com/${mediaId}/insights?${params.toString()}`,
+        {
+          method: "GET",
+          cache: "no-store"
+        }
+      );
+
+      if (!response.ok) continue;
+
+      const data = (await response.json()) as {
+        data?: Array<{ name?: string; values?: Array<{ value?: number }> }>;
+      };
+
+      const firstMetric = data.data?.find((item) =>
+        metrics.includes(item.name || "")
+      );
+
+      const value = firstMetric?.values?.[0]?.value;
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+    } catch {
+      continue;
+    }
   }
 
-  return data as InstagramProfile;
+  return 0;
+}
+
+function getTitleFromCaption(caption: string | undefined, fallback: string) {
+  const clean = (caption || "").replace(/\s+/g, " ").trim();
+  if (!clean) return fallback;
+  return clean.length > 80 ? clean.slice(0, 77) + "..." : clean;
+}
+
+export async function fetchInstagramMediaPosts(
+  accessToken: string
+): Promise<SocialPost[]> {
+  const params = new URLSearchParams({
+    fields: [
+      "id",
+      "caption",
+      "media_type",
+      "permalink",
+      "timestamp",
+      "username",
+      "like_count",
+      "comments_count"
+    ].join(","),
+    limit: "100",
+    access_token: accessToken
+  });
+
+  const response = await fetch(
+    "https://graph.instagram.com/me/media?" + params.toString(),
+    {
+      method: "GET",
+      cache: "no-store"
+    }
+  );
+
+  const data = await parseInstagramResponse<{
+    data?: InstagramMediaItem[];
+  }>(response, "Instagram media fetch failed");
+
+  const media = data.data || [];
+
+  return Promise.all(
+    media.map(async (item): Promise<SocialPost> => {
+      const views = await fetchMediaViews(item.id, accessToken);
+
+      return {
+        id: `instagram-${item.id}`,
+        platform: "Instagram",
+        title: getTitleFromCaption(item.caption, `Instagram media ${item.id}`),
+        url: item.permalink || "https://www.instagram.com/",
+        publishedAt: item.timestamp
+          ? item.timestamp.slice(0, 10)
+          : new Date().toISOString().slice(0, 10),
+        views,
+        likes: item.like_count || 0,
+        comments: item.comments_count || 0,
+        shares: 0,
+        notes: item.caption || "",
+        mediaType: item.media_type || "UNKNOWN"
+      };
+    })
+  );
 }

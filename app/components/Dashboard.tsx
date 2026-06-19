@@ -8,6 +8,7 @@ import PostTable from "@/app/components/PostTable";
 import PerformanceTabs from "@/app/components/PerformanceTabs";
 import HashtagLeaderboard from "@/app/components/HashtagLeaderboard";
 import InstagramConnectionPanel from "@/app/components/InstagramConnectionPanel";
+import SummaryPanel from "@/app/components/SummaryPanel";
 import { Platform, SocialPost } from "@/app/lib/types";
 
 type InstagramStatus = {
@@ -36,9 +37,11 @@ type DashboardProps = {
 
 function readStoredInstagramPosts(): SocialPost[] {
   if (typeof window === "undefined") return [];
+
   try {
     const raw = window.localStorage.getItem(INSTAGRAM_POSTS_KEY);
     if (!raw) return [];
+
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as SocialPost[]) : [];
   } catch {
@@ -48,6 +51,7 @@ function readStoredInstagramPosts(): SocialPost[] {
 
 function readStoredFetchedAt(): string | null {
   if (typeof window === "undefined") return null;
+
   try {
     return window.localStorage.getItem(INSTAGRAM_FETCHED_KEY);
   } catch {
@@ -64,146 +68,183 @@ export default function Dashboard({
   justConnectedParam
 }: DashboardProps) {
   const [posts, setPosts] = useState<SocialPost[]>(initialPosts);
-  const [selectedPlatform, setSelectedPlatform] = useState<Platform | "All">("All");
+  const [selectedPlatform, setSelectedPlatform] =
+    useState<Platform | "All">("All");
 
   const [instagramConnected, setInstagramConnected] = useState(false);
   const [instagramUserId, setInstagramUserId] = useState<string | null>(null);
   const [instagramSyncing, setInstagramSyncing] = useState(false);
-  const [instagramSyncError, setInstagramSyncError] = useState<string | null>(null);
-  const [instagramFetchedAt, setInstagramFetchedAt] = useState<string | null>(null);
+  const [instagramSyncError, setInstagramSyncError] = useState<string | null>(
+    null
+  );
+  const [instagramFetchedAt, setInstagramFetchedAt] = useState<string | null>(
+    null
+  );
   const [instagramImportedCount, setInstagramImportedCount] = useState(0);
 
-  // Wipe stale cache versions on mount so users always see a fresh sync.
   useEffect(() => {
-    if (typeof window === "undefined") return;
     try {
       window.localStorage.removeItem("social_metrics_instagram_posts");
       window.localStorage.removeItem("social_metrics_instagram_fetched");
     } catch {
-      // ignore
+      // Ignore unavailable storage.
     }
   }, []);
 
-  // On mount, hydrate any cached Instagram posts from localStorage so the user
-  // does not have to wait for a fresh fetch on every page load.
   useEffect(() => {
     const stored = readStoredInstagramPosts();
-    if (stored.length > 0) {
-      setPosts((current) => {
-        const merged = new Map<string, SocialPost>();
-        for (const post of current) merged.set(post.id, post);
-        for (const post of stored) merged.set(post.id, post);
-        return Array.from(merged.values());
+
+    if (stored.length === 0) return;
+
+    setPosts((current: SocialPost[]) => {
+      const merged = new Map<string, SocialPost>();
+
+      for (const post of current) merged.set(post.id, post);
+      for (const post of stored) merged.set(post.id, post);
+
+      return Array.from(merged.values());
+    });
+
+    setInstagramImportedCount(stored.length);
+    setInstagramFetchedAt(readStoredFetchedAt());
+  }, []);
+
+  const refreshInstagramStatus = useCallback(async () => {
+    try {
+      const response = await fetch("/api/instagram/status", {
+        cache: "no-store"
       });
-      setInstagramImportedCount(stored.length);
-      setInstagramFetchedAt(readStoredFetchedAt());
+      const data = (await response.json()) as InstagramStatus;
+
+      setInstagramConnected(Boolean(data.connected));
+      setInstagramUserId(data.userId || null);
+
+      if (!data.connected) {
+        setInstagramImportedCount(0);
+        setInstagramFetchedAt(null);
+      }
+
+      return Boolean(data.connected);
+    } catch {
+      setInstagramConnected(false);
+      setInstagramUserId(null);
+      return false;
     }
   }, []);
 
   const fetchInstagramMedia = useCallback(async () => {
     setInstagramSyncing(true);
     setInstagramSyncError(null);
+
     try {
-      const response = await fetch("/api/instagram/media", { cache: "no-store" });
+      const response = await fetch("/api/instagram/media", {
+        cache: "no-store"
+      });
       const data = (await response.json()) as InstagramMediaResponse;
+
       if (!response.ok || !data.posts) {
         throw new Error(data.error || "Failed to fetch Instagram media");
       }
+
       const imported = data.posts;
-      setPosts((current) => {
+
+      setPosts((current: SocialPost[]) => {
         const merged = new Map<string, SocialPost>();
-        // Keep manual entries first, then layer imported ones (they overwrite
-        // by id so re-imports refresh metrics).
+
         for (const post of current) {
           if (!post.id.startsWith("instagram-")) merged.set(post.id, post);
         }
+
         for (const post of imported) merged.set(post.id, post);
+
         return Array.from(merged.values());
       });
+
       setInstagramImportedCount(imported.length);
+
       const fetchedAt = data.fetchedAt || new Date().toISOString();
       setInstagramFetchedAt(fetchedAt);
-      try {
-        window.localStorage.setItem(INSTAGRAM_POSTS_KEY, JSON.stringify(imported));
-        window.localStorage.setItem(INSTAGRAM_FETCHED_KEY, fetchedAt);
-      } catch {
-        // localStorage may be unavailable (private mode, quota); fail silently.
-      }
+
+      window.localStorage.setItem(
+        INSTAGRAM_POSTS_KEY,
+        JSON.stringify(imported)
+      );
+      window.localStorage.setItem(INSTAGRAM_FETCHED_KEY, fetchedAt);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Instagram sync failed";
+      const message =
+        error instanceof Error ? error.message : "Instagram sync failed";
       setInstagramSyncError(message);
     } finally {
       setInstagramSyncing(false);
     }
   }, []);
 
-  // Check Instagram connection status. If the callback redirected us back with
-  // ?instagram=connected, give it a moment and then auto-sync.
   useEffect(() => {
-    let cancelled = false;
+    refreshInstagramStatus();
+  }, [refreshInstagramStatus]);
 
-    async function checkStatus() {
-      try {
-        const response = await fetch("/api/instagram/status", { cache: "no-store" });
-        const data = (await response.json()) as InstagramStatus;
-        if (cancelled) return;
-        setInstagramConnected(Boolean(data.connected));
-        setInstagramUserId(data.userId || null);
-      } catch {
-        if (!cancelled) setInstagramConnected(false);
-      }
-    }
-
-    checkStatus();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Whenever the connection flips on (e.g. user just came back from OAuth),
-  // automatically pull media. Also auto-sync on a fresh ?instagram=connected
-  // redirect so the user lands back on a populated dashboard.
   useEffect(() => {
-    if (instagramConnected && !instagramSyncing) {
-      const isFresh = justConnectedParam === "connected" || instagramImportedCount === 0;
-      if (isFresh) fetchInstagramMedia();
-    }
-  }, [instagramConnected, instagramImportedCount, instagramSyncing, justConnectedParam, fetchInstagramMedia]);
+    if (!instagramConnected || instagramSyncing) return;
 
-  const filteredPosts = useMemo(() => {
-    if (selectedPlatform === "All") return posts;
-    return posts.filter((post) => post.platform === selectedPlatform);
-  }, [posts, selectedPlatform]);
+    const shouldAutoSync =
+      justConnectedParam === "connected" ||
+      Boolean(initialCode) ||
+      instagramImportedCount === 0;
 
-  const instagramPosts = useMemo(
-    () => posts.filter((post) => post.platform === "Instagram"),
-    [posts]
-  );
+    if (shouldAutoSync) fetchInstagramMedia();
+  }, [
+    fetchInstagramMedia,
+    initialCode,
+    instagramConnected,
+    instagramImportedCount,
+    instagramSyncing,
+    justConnectedParam
+  ]);
 
-function handleAddPost(post: SocialPost) {
-    setPosts((current) => [post, ...current]);
+  function handleConnectionChange() {
+    refreshInstagramStatus();
+  }
+
+  function handleAddPost(post: SocialPost) {
+    setPosts((current: SocialPost[]) => [post, ...current]);
   }
 
   function handleDeletePost(id: string) {
-    setPosts((current) => current.filter((post) => post.id !== id));
-    if (id.startsWith("instagram-")) {
-      try {
-        const stored = readStoredInstagramPosts().filter((post) => post.id !== id);
-        window.localStorage.setItem(INSTAGRAM_POSTS_KEY, JSON.stringify(stored));
-        setInstagramImportedCount(stored.length);
-      } catch {
-        // ignore
-      }
+    setPosts((current: SocialPost[]) =>
+      current.filter((post: SocialPost) => post.id !== id)
+    );
+
+    if (!id.startsWith("instagram-")) return;
+
+    try {
+      const stored = readStoredInstagramPosts().filter(
+        (post: SocialPost) => post.id !== id
+      );
+      window.localStorage.setItem(INSTAGRAM_POSTS_KEY, JSON.stringify(stored));
+      setInstagramImportedCount(stored.length);
+    } catch {
+      // Ignore unavailable storage.
     }
   }
 
   function formatFetchedAt(value: string | null): string {
     if (!value) return "";
+
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "";
+
     return date.toLocaleString();
   }
+
+  const filteredPosts = useMemo(() => {
+    if (selectedPlatform === "All") return posts;
+    return posts.filter((post: SocialPost) => post.platform === selectedPlatform);
+  }, [posts, selectedPlatform]);
+
+  const instagramPosts = useMemo(
+    () => posts.filter((post: SocialPost) => post.platform === "Instagram"),
+    [posts]
+  );
 
   return (
     <main className="page">
@@ -221,6 +262,7 @@ function handleAddPost(post: SocialPost) {
         initialError={initialError}
         initialErrorDescription={initialErrorDescription}
         instagramRedirectUri={instagramRedirectUri}
+        onConnectionChange={handleConnectionChange}
       />
 
       {instagramConnected ? (
@@ -230,16 +272,19 @@ function handleAddPost(post: SocialPost) {
               <p className="eyebrow">Instagram sync</p>
               <h2>
                 {instagramImportedCount > 0
-                  ? instagramImportedCount + " posts imported"
+                  ? `${instagramImportedCount} posts imported`
                   : "Ready to import posts"}
               </h2>
               <p className="description">
                 {instagramImportedCount > 0
-                  ? "Showing reels and posts pulled from your Instagram account via the Graph API."
-                  : "Click Refresh to pull your latest reels and posts from Instagram."}
-                {instagramFetchedAt ? " Last synced " + formatFetchedAt(instagramFetchedAt) + "." : null}
+                  ? "Showing reels and posts pulled from your Instagram account."
+                  : "Click Refresh to pull your latest Instagram posts and reels."}
+                {instagramFetchedAt
+                  ? ` Last synced ${formatFetchedAt(instagramFetchedAt)}.`
+                  : ""}
               </p>
             </div>
+
             <button
               type="button"
               className="primaryButton"
@@ -250,16 +295,22 @@ function handleAddPost(post: SocialPost) {
               {instagramSyncing ? "Syncing..." : "Refresh from Instagram"}
             </button>
           </div>
+
           {instagramSyncError ? (
             <div className="messageBox error">
               <p>{instagramSyncError}</p>
             </div>
           ) : null}
+
           {instagramUserId ? (
-            <p className="syncMeta">Connected as Instagram user ID {instagramUserId}</p>
+            <p className="syncMeta">
+              Connected as Instagram user ID {instagramUserId}
+            </p>
           ) : null}
         </section>
       ) : null}
+
+      <SummaryPanel posts={filteredPosts} />
 
       <div className="dashboardFilterRow">
         <PlatformFilter
@@ -268,7 +319,7 @@ function handleAddPost(post: SocialPost) {
         />
       </div>
 
-<PerformanceTabs posts={filteredPosts} />
+      <PerformanceTabs posts={filteredPosts} />
 
       <HashtagLeaderboard posts={instagramPosts} />
 
