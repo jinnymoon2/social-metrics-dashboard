@@ -1,0 +1,24 @@
+{
+  "generatedAt": "2026-06-19T08:25:57.830Z",
+  "sourceUrl": "https://okky.kr/user/alineteam",
+  "userId": null,
+  "postsCount": 0,
+  "postsWithViewCount": 0,
+  "viewsByDate": [
+    {
+      "date": "2026-06-19",
+      "totalViews": 0,
+      "postsWithViews": 0,
+      "postsCount": 0
+    }
+  ],
+  "topKeywords": [],
+  "topPosts": [],
+  "posts": [],
+  "notes": [
+    "First run is a baseline. Daily views require at least two runs on different dates.",
+    "If totalViews is null, the current OKKY HTML did not expose a parseable view count.",
+    "Keyword scores use daily view delta when available, otherwise current total views as first-run baseline.",
+    "Ollama is used for keyword extraction; fallback keyword extraction is used if Ollama is unavailable."
+  ]
+}
