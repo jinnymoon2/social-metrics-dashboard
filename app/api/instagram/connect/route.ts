@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   buildInstagramAuthorizeUrl,
-  normalizeInstagramRedirectUri,
+  resolveInstagramRedirectUri
 } from "@/app/lib/instagram";
 
 export const dynamic = "force-dynamic";
 
-function getRuntimeRedirectUri(request: NextRequest) {
-  return normalizeInstagramRedirectUri(new URL("/", request.url).toString());
-}
-
 export async function GET(request: NextRequest) {
   try {
-    const redirectUri = getRuntimeRedirectUri(request);
+    // Use the redirect URI exactly as configured in INSTAGRAM_REDIRECT_URI.
+    // Meta requires an exact match with the URI registered for the app, so we
+    // never strip the trailing slash or replace it with the request origin.
+    const redirectUri = resolveInstagramRedirectUri();
     const authorizeUrl = buildInstagramAuthorizeUrl(redirectUri);
 
     const debug = request.nextUrl.searchParams.get("debug");
@@ -23,13 +22,10 @@ export async function GET(request: NextRequest) {
         authorizeUrl,
         redirectUri,
         envRedirectUri: process.env.INSTAGRAM_REDIRECT_URI || null,
-        normalizedEnvRedirectUri: process.env.INSTAGRAM_REDIRECT_URI
-          ? normalizeInstagramRedirectUri(process.env.INSTAGRAM_REDIRECT_URI)
-          : null,
         appId:
           process.env.INSTAGRAM_CLIENT_ID ||
           process.env.INSTAGRAM_APP_ID ||
-          null,
+          null
       });
     }
 
@@ -39,7 +35,7 @@ export async function GET(request: NextRequest) {
       appId:
         process.env.INSTAGRAM_CLIENT_ID ||
         process.env.INSTAGRAM_APP_ID ||
-        null,
+        null
     });
 
     return NextResponse.redirect(authorizeUrl);
@@ -61,11 +57,11 @@ export async function GET(request: NextRequest) {
             process.env.INSTAGRAM_CLIENT_SECRET ||
               process.env.INSTAGRAM_APP_SECRET
           ),
-          instagramRedirectUri: process.env.INSTAGRAM_REDIRECT_URI || null,
-        },
+          instagramRedirectUri: process.env.INSTAGRAM_REDIRECT_URI || null
+        }
       },
       {
-        status: 500,
+        status: 500
       }
     );
   }

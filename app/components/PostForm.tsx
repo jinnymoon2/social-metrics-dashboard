@@ -20,6 +20,7 @@ export default function PostForm({ onAddPost }: PostFormProps) {
   const [comments, setComments] = useState("");
   const [shares, setShares] = useState("");
   const [notes, setNotes] = useState("");
+  const [hashtags, setHashtags] = useState("");
 
   function parseMetric(value: string): number {
     const parsed = Number(value);
@@ -41,6 +42,7 @@ export default function PostForm({ onAddPost }: PostFormProps) {
     setComments("");
     setShares("");
     setNotes("");
+    setHashtags("");
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -60,7 +62,11 @@ export default function PostForm({ onAddPost }: PostFormProps) {
       likes: parseMetric(likes),
       comments: parseMetric(comments),
       shares: parseMetric(shares),
-      notes: notes.trim()
+      notes: notes.trim(),
+      hashtags: hashtags
+        .split(/[\s,#]+/)
+        .map((tag) => tag.trim())
+        .filter(Boolean)
     };
 
     onAddPost(newPost);
@@ -180,6 +186,19 @@ export default function PostForm({ onAddPost }: PostFormProps) {
           placeholder="Optional campaign note"
           className="rounded-xl border border-slate-200 px-3 py-2 outline-none focus:border-slate-950"
         />
+      </label>
+
+      <label className="mt-4 grid gap-2 text-sm font-medium text-slate-700">
+        Hashtags
+        <input
+          value={hashtags}
+          onChange={(event) => setHashtags(event.target.value)}
+          placeholder="design, buildinpublic, indiehackers"
+          className="rounded-xl border border-slate-200 px-3 py-2 outline-none focus:border-slate-950"
+        />
+        <span className="text-xs font-normal text-slate-500">
+          Separate tags with commas or spaces. You can also write them directly in the title (e.g. "launch day #buildinpublic") and we will pick them up automatically.
+        </span>
       </label>
 
       <button

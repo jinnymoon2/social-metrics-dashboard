@@ -11,6 +11,8 @@ export type SocialPost = {
   comments: number;
   shares: number;
   notes?: string;
+  hashtags?: string[];
+  mediaType?: string;
 };
 
 export type MetricSummary = {
@@ -20,4 +22,22 @@ export type MetricSummary = {
   totalComments: number;
   totalShares: number;
   averageEngagementRate: number;
+};
+
+export type HashtagStat = {
+  hashtag: string;
+  postCount: number;
+  totalViews: number;
+  totalLikes: number;
+  totalComments: number;
+  averageEngagementRate: number;
+};
+
+export type DailyMetricPoint = {
+  date: string;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  posts: number;
 };

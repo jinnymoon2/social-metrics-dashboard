@@ -22,8 +22,21 @@ export type InstagramProfile = {
   media_count?: number;
 };
 
-export function normalizeInstagramRedirectUri(uri: string) {
-  return uri.endsWith("/") ? uri.slice(0, -1) : uri;
+// Returns the redirect URI exactly as configured. Do not strip the trailing slash,
+// since Meta OAuth flow performs an exact, case-sensitive comparison with the
+// redirect URI registered for the app.
+export function resolveInstagramRedirectUri(redirectUriOverride?: string): string {
+  const fromOverride = redirectUriOverride && redirectUriOverride.trim();
+  if (fromOverride) {
+    return fromOverride;
+  }
+
+  const fromEnv = process.env.INSTAGRAM_REDIRECT_URI && process.env.INSTAGRAM_REDIRECT_URI.trim();
+  if (fromEnv) {
+    return fromEnv;
+  }
+
+  throw new Error("Missing Instagram redirect URI");
 }
 
 export function getInstagramConfig(redirectUriOverride?: string) {
@@ -33,9 +46,6 @@ export function getInstagramConfig(redirectUriOverride?: string) {
   const clientSecret =
     process.env.INSTAGRAM_CLIENT_SECRET || process.env.INSTAGRAM_APP_SECRET;
 
-  const rawRedirectUri =
-    redirectUriOverride || process.env.INSTAGRAM_REDIRECT_URI;
-
   if (!clientId) {
     throw new Error("Missing INSTAGRAM_CLIENT_ID or INSTAGRAM_APP_ID");
   }
@@ -44,16 +54,12 @@ export function getInstagramConfig(redirectUriOverride?: string) {
     throw new Error("Missing INSTAGRAM_CLIENT_SECRET or INSTAGRAM_APP_SECRET");
   }
 
-  if (!rawRedirectUri) {
-    throw new Error("Missing Instagram redirect URI");
-  }
-
-  const redirectUri = normalizeInstagramRedirectUri(rawRedirectUri);
+  const redirectUri = resolveInstagramRedirectUri(redirectUriOverride);
 
   return {
     clientId,
     clientSecret,
-    redirectUri,
+    redirectUri
   };
 }
 
@@ -67,11 +73,14 @@ export function buildInstagramAuthorizeUrl(redirectUriOverride?: string) {
     response_type: "code",
     scope: [
       "instagram_business_basic",
-      "instagram_business_manage_insights",
-    ].join(","),
+      "instagram_business_manage_messages",
+      "instagram_business_manage_comments",
+      "instagram_business_content_publish",
+      "instagram_business_manage_insights"
+    ].join(",")
   });
 
-  return `https://www.instagram.com/oauth/authorize?${params.toString()}`;
+  return "https://www.instagram.com/oauth/authorize?" + params.toString();
 }
 
 export async function exchangeCodeForShortLivedToken(
@@ -86,28 +95,28 @@ export async function exchangeCodeForShortLivedToken(
     client_secret: clientSecret,
     grant_type: "authorization_code",
     redirect_uri: redirectUri,
-    code,
+    code
   });
 
   console.log("[instagram:token] Exchanging code with redirect URI:", {
     redirectUri,
     clientId,
-    codeLength: code.length,
+    codeLength: code.length
   });
 
   const response = await fetch("https://api.instagram.com/oauth/access_token", {
     method: "POST",
     headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
+      "Content-Type": "application/x-www-form-urlencoded"
     },
     body,
-    cache: "no-store",
+    cache: "no-store"
   });
 
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(`Token exchange failed: ${JSON.stringify(data)}`);
+    throw new Error("Token exchange failed: " + JSON.stringify(data));
   }
 
   return data as InstagramTokenResponse;
@@ -121,21 +130,21 @@ export async function exchangeForLongLivedToken(
   const params = new URLSearchParams({
     grant_type: "ig_exchange_token",
     client_secret: clientSecret,
-    access_token: shortLivedAccessToken,
+    access_token: shortLivedAccessToken
   });
 
   const response = await fetch(
-    `https://graph.instagram.com/access_token?${params.toString()}`,
+    "https://graph.instagram.com/access_token?" + params.toString(),
     {
       method: "GET",
-      cache: "no-store",
+      cache: "no-store"
     }
   );
 
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(`Long-lived token exchange failed: ${JSON.stringify(data)}`);
+    throw new Error("Long-lived token exchange failed: " + JSON.stringify(data));
   }
 
   return data as InstagramLongLivedTokenResponse;
@@ -153,19 +162,19 @@ export async function fetchInstagramProfile(
     "profile_picture_url",
     "followers_count",
     "follows_count",
-    "media_count",
+    "media_count"
   ].join(",");
 
   const params = new URLSearchParams({
     fields,
-    access_token: accessToken,
+    access_token: accessToken
   });
 
   const response = await fetch(
-    `https://graph.instagram.com/me?${params.toString()}`,
+    "https://graph.instagram.com/me?" + params.toString(),
     {
       method: "GET",
-      cache: "no-store",
+      cache: "no-store"
     }
   );
 

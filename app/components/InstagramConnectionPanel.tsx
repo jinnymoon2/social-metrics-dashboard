@@ -34,6 +34,7 @@ type InstagramConnectionPanelProps = {
   initialCode: string | null;
   initialError: string | null;
   initialErrorDescription: string | null;
+  instagramRedirectUri: string;
 };
 
 const STORAGE_KEY = "social_metrics_instagram_connection";
@@ -42,6 +43,7 @@ export default function InstagramConnectionPanel({
   initialCode,
   initialError,
   initialErrorDescription,
+  instagramRedirectUri
 }: InstagramConnectionPanelProps) {
   const hasExchangedCodeRef = useRef(false);
 
@@ -256,8 +258,11 @@ export default function InstagramConnectionPanel({
 
       <div className="debugBox">
         <p>
-          Required redirect URI:
-          <code>https://social-metrics-dashboard-two.vercel.app/</code>
+          Required redirect URI (add this exact value to your Meta app dashboard
+          under "Valid OAuth Redirect URIs"):
+        </p>
+        <p>
+          <code>{instagramRedirectUri || "Not configured"}</code>
         </p>
       </div>
     </section>

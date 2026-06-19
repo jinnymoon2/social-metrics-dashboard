@@ -1,0 +1,294 @@
+"use client";
+
+import { TrendingUp } from "lucide-react";
+import { useMemo, useState } from "react";
+import {
+  aggregateDailyMetrics,
+  formatNumber,
+  smoothSeries
+} from "@/app/lib/metrics";
+import { SocialPost } from "@/app/lib/types";
+
+type TrendMetric = "views" | "likes" | "comments" | "shares";
+
+type MetricOption = {
+  id: TrendMetric;
+  label: string;
+  color: string;
+};
+
+const METRIC_OPTIONS: MetricOption[] = [
+  { id: "views", label: "Views", color: "#2563eb" },
+  { id: "likes", label: "Likes", color: "#db2777" },
+  { id: "comments", label: "Comments", color: "#0891b2" },
+  { id: "shares", label: "Shares", color: "#ca8a04" }
+];
+
+type SmoothingMode = "raw" | "smooth";
+
+const SMOOTH_OPTIONS: Array<{ id: SmoothingMode; label: string }> = [
+  { id: "raw", label: "Daily" },
+  { id: "smooth", label: "7-day avg" }
+];
+
+type TrendsPanelProps = {
+  posts: SocialPost[];
+  title?: string;
+  subtitle?: string;
+  emptyMessage?: string;
+};
+
+const CHART_WIDTH = 720;
+const CHART_HEIGHT = 280;
+const PADDING_X = 44;
+const PADDING_Y = 28;
+
+function formatShortDate(value: string): string {
+  const parts = value.split("-");
+  if (parts.length !== 3) return value;
+  return parts[1] + "/" + parts[2];
+}
+
+function formatCompact(value: number): string {
+  if (!Number.isFinite(value)) return "0";
+  const abs = Math.abs(value);
+  if (abs >= 1000000) return (value / 1000000).toFixed(1) + "M";
+  if (abs >= 1000) return (value / 1000).toFixed(1) + "K";
+  if (abs >= 10) return value.toFixed(0);
+  return value.toFixed(1);
+}
+
+export default function TrendsPanel({
+  posts,
+  title,
+  subtitle,
+  emptyMessage
+}: TrendsPanelProps) {
+  const [metric, setMetric] = useState<TrendMetric>("views");
+  const [smoothing, setSmoothing] = useState<SmoothingMode>("raw");
+
+  const daily = useMemo(() => aggregateDailyMetrics(posts), [posts]);
+  const activeOption =
+    METRIC_OPTIONS.find((option) => option.id === metric) || METRIC_OPTIONS[0];
+  const activeColor = activeOption.color;
+
+  const seriesValues = useMemo(() => {
+    const values = daily.map((point) => point[metric]);
+    return smoothing === "smooth" ? smoothSeries(values, 7) : values;
+  }, [daily, metric, smoothing]);
+
+  const totals = useMemo(() => {
+    return {
+      views: daily.reduce((sum, point) => sum + point.views, 0),
+      likes: daily.reduce((sum, point) => sum + point.likes, 0),
+      comments: daily.reduce((sum, point) => sum + point.comments, 0),
+      shares: daily.reduce((sum, point) => sum + point.shares, 0)
+    };
+  }, [daily]);
+
+  if (daily.length === 0) {
+    return (
+      <section className="card">
+        <div className="cardHeader">
+          <div>
+            <p className="eyebrow">Trends</p>
+            <h2>{title || "Performance over time"}</h2>
+          </div>
+          <span className="statusBadge idle">No data</span>
+        </div>
+        <p className="description">
+          {emptyMessage || "Add posts with a published date to see views, likes, comments, and shares trend across time."}
+        </p>
+      </section>
+    );
+  }
+
+  const peak = (() => {
+    let peakIndex = 0;
+    for (let i = 1; i < daily.length; i += 1) {
+      if (daily[i][metric] > daily[peakIndex][metric]) peakIndex = i;
+    }
+    return { point: daily[peakIndex], value: daily[peakIndex][metric] };
+  })();
+
+  const maxValue = Math.max(1, ...seriesValues);
+  const innerWidth = CHART_WIDTH - PADDING_X * 2;
+  const innerHeight = CHART_HEIGHT - PADDING_Y * 2;
+  const stepX = daily.length > 1 ? innerWidth / (daily.length - 1) : 0;
+
+  const points = seriesValues.map((value, index) => {
+    const x = PADDING_X + index * stepX;
+    const y = CHART_HEIGHT - PADDING_Y - (value / maxValue) * innerHeight;
+    return { x, y, value, label: daily[index].date };
+  });
+
+  const linePath = points
+    .map((point, index) =>
+      (index === 0 ? "M" : "L") + point.x.toFixed(1) + "," + point.y.toFixed(1)
+    )
+    .join(" ");
+
+  const areaPath =
+    linePath +
+    " L" + points[points.length - 1].x.toFixed(1) +
+    "," + (CHART_HEIGHT - PADDING_Y).toFixed(1) +
+    " L" + points[0].x.toFixed(1) +
+    "," + (CHART_HEIGHT - PADDING_Y).toFixed(1) +
+    " Z";
+
+  const yAxisTicks = 4;
+  const xTickIndices = (() => {
+    if (daily.length <= 6) return daily.map((_, index) => index);
+    const step = Math.ceil(daily.length / 6);
+    const indices: number[] = [];
+    for (let i = 0; i < daily.length; i += step) indices.push(i);
+    if (indices[indices.length - 1] !== daily.length - 1) {
+      indices.push(daily.length - 1);
+    }
+    return indices;
+  })();
+
+  return (
+    <section className="card">
+      <div className="cardHeader">
+        <div>
+          <p className="eyebrow">Trends</p>
+          <h2>Performance over time</h2>
+        </div>
+        <span className="statusBadge connected">
+          <TrendingUp size={14} style={{ marginRight: 6 }} />
+          {daily.length === 1 ? "1 day" : daily.length + " days"}
+        </span>
+      </div>
+
+      <p className="description">
+        Daily totals across all tracked posts. Toggle a metric to switch the trend line, or switch to a 7-day moving average to smooth single-day spikes.
+      </p>
+
+      <div className="chartControls">
+        <div className="chartControlGroup">
+          {METRIC_OPTIONS.map((option) => {
+            const isActive = metric === option.id;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => setMetric(option.id)}
+                className={"chartControlButton" + (isActive ? " is-active" : "")}
+                style={isActive ? { borderColor: option.color, color: option.color, background: option.color + "14" } : undefined}
+              >
+                <span className="chartControlDot" style={{ background: option.color }} />
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+        <div className="chartControlGroup">
+          {SMOOTH_OPTIONS.map((option) => {
+            const isActive = smoothing === option.id;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => setSmoothing(option.id)}
+                className={"chartControlButton" + (isActive ? " is-active" : "")}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="chartStatRow">
+        <div className="chartStat">
+          <span>Total {activeOption.label.toLowerCase()}</span>
+          <strong>{formatNumber(totals[metric])}</strong>
+        </div>
+        <div className="chartStat">
+          <span>Daily average</span>
+          <strong>{formatNumber(Math.round(totals[metric] / daily.length))}</strong>
+        </div>
+        <div className="chartStat">
+          <span>Peak day</span>
+          <strong>{formatShortDate(peak.point.date) + " · " + formatCompact(peak.value)}</strong>
+        </div>
+        <div className="chartStat">
+          <span>Posts</span>
+          <strong>{formatNumber(daily.reduce((sum, point) => sum + point.posts, 0))}</strong>
+        </div>
+      </div>
+
+      <div className="chartWrapper">
+        <svg
+          viewBox={"0 0 " + CHART_WIDTH + " " + CHART_HEIGHT}
+          role="img"
+          aria-label={"Trend chart for " + metric}
+          preserveAspectRatio="none"
+          className="chartSvg"
+        >
+          {Array.from({ length: yAxisTicks + 1 }).map((_, index) => {
+            const ratio = index / yAxisTicks;
+            const y = CHART_HEIGHT - PADDING_Y - ratio * innerHeight;
+            const value = ratio * maxValue;
+            return (
+              <g key={"y-" + index}>
+                <line
+                  x1={PADDING_X}
+                  x2={CHART_WIDTH - PADDING_X}
+                  y1={y}
+                  y2={y}
+                  className="chartGridLine"
+                />
+                <text
+                  x={PADDING_X - 8}
+                  y={y + 4}
+                  className="chartAxisLabel"
+                  textAnchor="end"
+                >
+                  {formatCompact(value)}
+                </text>
+              </g>
+            );
+          })}
+
+          <path d={areaPath} fill={activeColor} fillOpacity="0.12" />
+          <path
+            d={linePath}
+            fill="none"
+            stroke={activeColor}
+            strokeWidth="2.5"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+
+          {points.map((point, index) => (
+            <circle
+              key={"point-" + index}
+              cx={point.x}
+              cy={point.y}
+              r="3.5"
+              fill="white"
+              stroke={activeColor}
+              strokeWidth="2"
+            >
+              <title>{point.label + ": " + formatNumber(point.value)}</title>
+            </circle>
+          ))}
+
+          {xTickIndices.map((index) => (
+            <text
+              key={"x-" + index}
+              x={PADDING_X + index * stepX}
+              y={CHART_HEIGHT - 6}
+              className="chartAxisLabel"
+              textAnchor="middle"
+            >
+              {formatShortDate(daily[index].date)}
+            </text>
+          ))}
+        </svg>
+      </div>
+    </section>
+  );
+}

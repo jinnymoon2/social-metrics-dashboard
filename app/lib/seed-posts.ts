@@ -2,7 +2,61 @@ import { SocialPost } from "@/app/lib/types";
 
 export const seedPosts: SocialPost[] = [
   {
-    id: "ig-001",
+    id: "ig-2026-05-21",
+    platform: "Instagram",
+    title: "Behind the scenes of our launch prep",
+    url: "https://instagram.com/",
+    publishedAt: "2026-05-21",
+    views: 820,
+    likes: 71,
+    comments: 9,
+    shares: 4,
+    hashtags: ["buildinpublic", "indiehackers"],
+    notes: "Carousel post with #buildinpublic"
+  },
+  {
+    id: "ig-2026-05-24",
+    platform: "Instagram",
+    title: "Quick design tip on typography",
+    url: "https://instagram.com/",
+    publishedAt: "2026-05-24",
+    views: 1450,
+    likes: 188,
+    comments: 22,
+    shares: 17,
+    hashtags: ["design", "typography", "ui"],
+    notes: "Reel with #design #typography",
+    mediaType: "REEL"
+  },
+  {
+    id: "ig-2026-05-26",
+    platform: "Instagram",
+    title: "Indie founder wins thread",
+    url: "https://instagram.com/",
+    publishedAt: "2026-05-26",
+    views: 2310,
+    likes: 274,
+    comments: 41,
+    shares: 28,
+    hashtags: ["buildinpublic", "indiehackers", "startup"],
+    notes: "Carousel with #buildinpublic"
+  },
+  {
+    id: "ig-2026-05-29",
+    platform: "Instagram",
+    title: "Type pairing experiment reel",
+    url: "https://instagram.com/",
+    publishedAt: "2026-05-29",
+    views: 980,
+    likes: 132,
+    comments: 14,
+    shares: 8,
+    hashtags: ["design", "typography"],
+    notes: "Reel with #design",
+    mediaType: "REEL"
+  },
+  {
+    id: "ig-2026-06-01",
     platform: "Instagram",
     title: "Aline.team developer type carousel",
     url: "https://instagram.com/",
@@ -11,7 +65,49 @@ export const seedPosts: SocialPost[] = [
     likes: 94,
     comments: 8,
     shares: 12,
+    hashtags: ["product", "engineering"],
     notes: "Manual sample data"
+  },
+  {
+    id: "ig-2026-06-03",
+    platform: "Instagram",
+    title: "Inside the metrics dashboard",
+    url: "https://instagram.com/",
+    publishedAt: "2026-06-03",
+    views: 3120,
+    likes: 402,
+    comments: 53,
+    shares: 39,
+    hashtags: ["buildinpublic", "product", "indiehackers"],
+    notes: "Carousel with #buildinpublic",
+    mediaType: "CAROUSEL_ALBUM"
+  },
+  {
+    id: "ig-2026-06-06",
+    platform: "Instagram",
+    title: "How we name our releases",
+    url: "https://instagram.com/",
+    publishedAt: "2026-06-06",
+    views: 1740,
+    likes: 211,
+    comments: 24,
+    shares: 19,
+    hashtags: ["design", "product"],
+    notes: "Reel"
+  },
+  {
+    id: "ig-2026-06-09",
+    platform: "Instagram",
+    title: "Friday founder letter",
+    url: "https://instagram.com/",
+    publishedAt: "2026-06-09",
+    views: 2680,
+    likes: 318,
+    comments: 36,
+    shares: 22,
+    hashtags: ["buildinpublic", "indiehackers"],
+    notes: "Long caption carousel",
+    mediaType: "CAROUSEL_ALBUM"
   },
   {
     id: "li-001",
@@ -23,7 +119,7 @@ export const seedPosts: SocialPost[] = [
     likes: 42,
     comments: 6,
     shares: 4,
-    notes: "Manual sample data"
+    hashtags: ["ai", "engineering"]
   },
   {
     id: "x-001",
@@ -35,7 +131,7 @@ export const seedPosts: SocialPost[] = [
     likes: 21,
     comments: 3,
     shares: 9,
-    notes: "Manual sample data"
+    hashtags: ["buildinpublic"]
   },
   {
     id: "okky-001",
@@ -47,6 +143,6 @@ export const seedPosts: SocialPost[] = [
     likes: 11,
     comments: 5,
     shares: 0,
-    notes: "Manual sample data"
+    hashtags: ["community"]
   }
 ];
