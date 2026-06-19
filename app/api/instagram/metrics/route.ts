@@ -6,6 +6,7 @@ type InstagramMedia = {
   id: string;
   caption?: string;
   media_type?: string;
+  media_product_type?: string;
   permalink?: string;
   timestamp?: string;
   like_count?: number;
@@ -40,23 +41,50 @@ async function graphGet(path: string, params: Record<string, string>) {
   return data;
 }
 
-async function getMediaInsights(mediaId: string, accessToken: string) {
+async function getMediaList(accessToken: string) {
   try {
-    const data = await graphGet(`${mediaId}/insights`, {
-      metric: "views,likes,comments,shares,saves,total_interactions",
+    return await graphGet("me/media", {
+      fields:
+        "id,caption,media_type,media_product_type,permalink,timestamp,like_count,comments_count",
+      limit: "50",
       access_token: accessToken,
     });
-
-    const values: Record<string, number> = {};
-
-    for (const item of data?.data ?? []) {
-      values[item.name] = toNumber(item.values?.[0]?.value);
-    }
-
-    return values;
   } catch {
-    return {};
+    return graphGet("me/media", {
+      fields:
+        "id,caption,media_type,permalink,timestamp,like_count,comments_count",
+      limit: "50",
+      access_token: accessToken,
+    });
   }
+}
+
+async function getMediaInsights(mediaId: string, accessToken: string) {
+  const metricSets = [
+    "views,likes,comments,shares,saves,total_interactions",
+    "plays,likes,comments,shares,saves,total_interactions",
+  ];
+
+  for (const metric of metricSets) {
+    try {
+      const data = await graphGet(`${mediaId}/insights`, {
+        metric,
+        access_token: accessToken,
+      });
+
+      const values: Record<string, number> = {};
+
+      for (const item of data?.data ?? []) {
+        values[item.name] = toNumber(item.values?.[0]?.value);
+      }
+
+      return values;
+    } catch {
+      continue;
+    }
+  }
+
+  return {};
 }
 
 export async function GET(request: NextRequest) {
@@ -79,12 +107,7 @@ export async function GET(request: NextRequest) {
       access_token: accessToken,
     });
 
-    const mediaResponse = await graphGet("me/media", {
-      fields: "id,caption,media_type,permalink,timestamp,like_count,comments_count",
-      limit: "25",
-      access_token: accessToken,
-    });
-
+    const mediaResponse = await getMediaList(accessToken);
     const media: InstagramMedia[] = mediaResponse?.data ?? [];
 
     const posts = await Promise.all(
@@ -95,14 +118,16 @@ export async function GET(request: NextRequest) {
           id: item.id,
           title: item.caption
             ? item.caption.slice(0, 90)
-            : `${item.media_type ?? "Instagram"} post`,
+            : `${item.media_product_type ?? item.media_type ?? "Instagram"} post`,
           url: item.permalink,
-          views: toNumber(insights.views),
+          views: toNumber(insights.views ?? insights.plays),
           likes: toNumber(insights.likes ?? item.like_count),
           comments: toNumber(insights.comments ?? item.comments_count),
           shares: toNumber(insights.shares),
           saves: toNumber(insights.saves),
           createdAt: item.timestamp,
+          mediaType: item.media_type,
+          mediaProductType: item.media_product_type,
         };
       }),
     );

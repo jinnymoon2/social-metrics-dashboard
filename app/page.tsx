@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ViewsTrendCard } from "./components/views-trend-card";
 
 type PlatformKey = "instagram" | "okky";
 
@@ -14,6 +15,8 @@ type MetricPost = {
   shares?: number;
   saves?: number;
   createdAt?: string;
+  mediaType?: string;
+  mediaProductType?: string;
 };
 
 type PlatformMetrics = {
@@ -100,6 +103,8 @@ function normalizePost(post: any, index: number): MetricPost {
     shares: toNumber(post.shares ?? post.shareCount),
     saves: toNumber(post.saves ?? post.saveCount),
     createdAt: post.createdAt ?? post.created_time ?? post.date ?? post.publishedAt,
+    mediaType: post.mediaType ?? post.media_type,
+    mediaProductType: post.mediaProductType ?? post.media_product_type,
   };
 }
 
@@ -155,7 +160,10 @@ function normalizeMetrics(platform: PlatformKey, rawData: any): PlatformMetrics 
     data.engagementRate ??
     data.engagement ??
     (toNumber(totalViews) > 0
-      ? ((toNumber(totalLikes) + toNumber(totalComments) + toNumber(totalShares) + toNumber(totalSaves)) /
+      ? ((toNumber(totalLikes) +
+          toNumber(totalComments) +
+          toNumber(totalShares) +
+          toNumber(totalSaves)) /
           toNumber(totalViews)) *
         100
       : 0);
@@ -184,6 +192,7 @@ async function fetchPlatformMetrics(platform: PlatformKey): Promise<PlatformMetr
     try {
       const response = await fetch(endpoint, {
         cache: "no-store",
+        credentials: "same-origin",
       });
 
       const data = await response.json();
@@ -205,6 +214,7 @@ async function fetchPlatformMetrics(platform: PlatformKey): Promise<PlatformMetr
 async function getInstagramStatus(): Promise<InstagramStatus> {
   const response = await fetch("/api/instagram/status", {
     cache: "no-store",
+    credentials: "same-origin",
   });
 
   if (!response.ok) {
@@ -241,7 +251,8 @@ async function completeInstagramOAuth(code: string, state: string) {
 
 export default function HomePage() {
   const [activePlatform, setActivePlatform] = useState<PlatformKey>("instagram");
-  const [isCompletingOAuth, setIsCompletingOAuth] = useState(false);
+  const [isCompletingInstagram, setIsCompletingInstagram] = useState(false);
+
   const [instagramStatus, setInstagramStatus] = useState<InstagramStatus>({
     connected: false,
     userId: null,
@@ -285,26 +296,10 @@ export default function HomePage() {
     return status;
   }
 
-  function connectInstagramInPopup() {
-    const width = 560;
-    const height = 720;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-
-    const popup = window.open(
-      "/api/instagram/login",
-      "instagram-login",
-      `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`,
-    );
-
-    if (!popup) {
-      window.location.href = "/api/instagram/login";
-    }
-  }
-
   async function disconnectInstagram() {
     await fetch("/api/instagram/logout", {
       method: "POST",
+      credentials: "same-origin",
     });
 
     setInstagramStatus({
@@ -324,64 +319,59 @@ export default function HomePage() {
   }
 
   useEffect(() => {
-    async function handleOAuthRedirectInPopup() {
+    async function initialize() {
       const params = new URLSearchParams(window.location.search);
+
       const code = params.get("code");
       const state = params.get("state");
-      const error = params.get("error") || params.get("error_reason");
+      const oauthError = params.get("error") || params.get("error_reason");
+      const oauthErrorDescription = params.get("error_description");
 
-      const isPopup = Boolean(window.opener);
+      if (oauthError) {
+        const cleanUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, "", cleanUrl);
 
-      if (!isPopup || (!code && !error)) return;
+        setErrors((current) => ({
+          ...current,
+          instagram: oauthErrorDescription || oauthError,
+        }));
 
-      setIsCompletingOAuth(true);
-
-      try {
-        if (error) {
-          throw new Error(params.get("error_description") || error);
-        }
-
-        if (!code || !state) {
-          throw new Error("Missing Instagram authorization response.");
-        }
-
-        await completeInstagramOAuth(code, state);
-
-        window.opener.postMessage(
-          {
-            source: "social-metrics-dashboard",
-            provider: "instagram",
-            status: "success",
-          },
-          window.location.origin,
-        );
-
-        window.close();
-      } catch (oauthError) {
-        window.opener.postMessage(
-          {
-            source: "social-metrics-dashboard",
-            provider: "instagram",
-            status: "error",
-            message:
-              oauthError instanceof Error
-                ? oauthError.message
-                : "Instagram login failed.",
-          },
-          window.location.origin,
-        );
-
-        window.close();
+        loadPlatform("okky");
+        return;
       }
-    }
 
-    handleOAuthRedirectInPopup();
-  }, []);
+      if (code && state) {
+        setIsCompletingInstagram(true);
+        setActivePlatform("instagram");
 
-  useEffect(() => {
-    if (isCompletingOAuth) return;
+        try {
+          await completeInstagramOAuth(code, state);
 
-    async function initialize() {
+          const cleanUrl = window.location.origin + window.location.pathname;
+          window.history.replaceState({}, "", cleanUrl);
+
+          setInstagramStatus({
+            connected: true,
+            userId: null,
+          });
+
+          await loadPlatform("instagram");
+        } catch (error) {
+          setErrors((current) => ({
+            ...current,
+            instagram:
+              error instanceof Error
+                ? error.message
+                : "Instagram login failed.",
+          }));
+        } finally {
+          setIsCompletingInstagram(false);
+        }
+
+        loadPlatform("okky");
+        return;
+      }
+
       const status = await refreshInstagramStatus();
 
       if (status.connected) {
@@ -392,38 +382,6 @@ export default function HomePage() {
     }
 
     initialize();
-  }, [isCompletingOAuth]);
-
-  useEffect(() => {
-    function handleMessage(event: MessageEvent) {
-      if (event.origin !== window.location.origin) return;
-
-      const data = event.data;
-
-      if (
-        data?.source === "social-metrics-dashboard" &&
-        data?.provider === "instagram"
-      ) {
-        if (data.status === "success") {
-          refreshInstagramStatus().then((status) => {
-            if (status.connected) {
-              loadPlatform("instagram");
-              setActivePlatform("instagram");
-            }
-          });
-        }
-
-        if (data.status === "error") {
-          setErrors((current) => ({
-            ...current,
-            instagram: data.message || "Instagram login failed.",
-          }));
-        }
-      }
-    }
-
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
   }, []);
 
   useEffect(() => {
@@ -437,12 +395,17 @@ export default function HomePage() {
   }, [activePlatform, instagramStatus.connected]);
 
   const activeConfig = PLATFORM_CONFIG[activePlatform];
+
   const activeMetrics =
     activePlatform === "instagram" && !instagramStatus.connected
       ? LOCKED_INSTAGRAM_METRICS
       : metrics[activePlatform];
 
-  const activeLoading = loading[activePlatform];
+  const activeLoading =
+    activePlatform === "instagram"
+      ? loading.instagram || isCompletingInstagram
+      : loading[activePlatform];
+
   const activeError = errors[activePlatform];
 
   const tablePosts = useMemo(() => {
@@ -451,18 +414,6 @@ export default function HomePage() {
 
   const isInstagramLocked =
     activePlatform === "instagram" && !instagramStatus.connected;
-
-  if (isCompletingOAuth) {
-    return (
-      <main className="socialOAuthFinishing">
-        <section>
-          <p className="socialEyebrow">Instagram Connection</p>
-          <h1>Connecting Instagram...</h1>
-          <p>This popup will close automatically. Metrics will load in the dashboard behind it.</p>
-        </section>
-      </main>
-    );
-  }
 
   return (
     <main className="socialDashboardShell">
@@ -502,13 +453,9 @@ export default function HomePage() {
 
           <div className="socialHeaderActions">
             {activePlatform === "instagram" && !instagramStatus.connected && (
-              <button
-                type="button"
-                onClick={connectInstagramInPopup}
-                className="socialPrimaryButton"
-              >
+              <a href="/api/instagram/login" className="socialPrimaryButton">
                 Connect Instagram
-              </button>
+              </a>
             )}
 
             {activePlatform === "instagram" && instagramStatus.connected && (
@@ -558,24 +505,22 @@ export default function HomePage() {
             <div>
               <strong>Connect Instagram to unlock real metrics.</strong>
               <p>
-                Login opens in a popup. After connection, the popup closes and metrics
-                load in this dashboard window.
+                You will temporarily leave this page for Instagram login, then return
+                here automatically with metrics loaded.
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={connectInstagramInPopup}
-              className="socialPrimaryButton"
-            >
+            <a href="/api/instagram/login" className="socialPrimaryButton">
               Connect Instagram
-            </button>
+            </a>
           </div>
         )}
 
         {activeLoading && (
           <div className="socialStateCard">
-            Loading {activeConfig.label} metrics...
+            {isCompletingInstagram
+              ? "Completing Instagram connection and loading metrics..."
+              : `Loading ${activeConfig.label} metrics...`}
           </div>
         )}
 
@@ -608,6 +553,10 @@ export default function HomePage() {
                 locked={isInstagramLocked}
               />
             </section>
+
+            {!isInstagramLocked && activePlatform === "instagram" && (
+              <ViewsTrendCard posts={tablePosts} />
+            )}
 
             <section className={isInstagramLocked ? "socialTableCard locked" : "socialTableCard"}>
               <div className="socialTableHeader">

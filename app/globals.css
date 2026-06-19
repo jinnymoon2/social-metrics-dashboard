@@ -1221,3 +1221,158 @@ code {
   color: #6b7280;
   line-height: 1.6;
 }
+
+.viewsTrendCard {
+  margin-top: 24px;
+  border: 1px solid #e5e7eb;
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+}
+
+.viewsTrendHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 24px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.viewsTrendHeader h3 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 850;
+  letter-spacing: -0.02em;
+}
+
+.viewsTrendHeader p {
+  margin: 6px 0 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.viewsTrendTabs {
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #f9fafb;
+}
+
+.viewsTrendTabs button {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  padding: 8px 14px;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.viewsTrendTabs button.active {
+  background: #111827;
+  color: #ffffff;
+}
+
+.viewsTrendSummary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.viewsTrendSummary div {
+  padding: 18px 24px;
+  border-right: 1px solid #e5e7eb;
+}
+
+.viewsTrendSummary div:last-child {
+  border-right: 0;
+}
+
+.viewsTrendSummary span {
+  display: block;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.viewsTrendSummary strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 24px;
+  letter-spacing: -0.03em;
+}
+
+.viewsTrendChartWrap {
+  padding: 22px 24px 26px;
+}
+
+.viewsTrendChart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.viewsTrendAxis {
+  stroke: #d1d5db;
+  stroke-width: 1.5;
+}
+
+.viewsTrendGrid {
+  stroke: #eef2f7;
+  stroke-width: 1;
+}
+
+.viewsTrendLine {
+  stroke: #111827;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.viewsTrendDot {
+  fill: #ffffff;
+  stroke: #111827;
+  stroke-width: 3;
+}
+
+.viewsTrendDateLabel,
+.viewsTrendValueLabel {
+  fill: #6b7280;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.viewsTrendEmpty {
+  display: grid;
+  place-items: center;
+  min-height: 260px;
+  color: #6b7280;
+  font-weight: 700;
+}
+
+@media (max-width: 700px) {
+  .viewsTrendHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .viewsTrendSummary {
+    grid-template-columns: 1fr;
+  }
+
+  .viewsTrendSummary div {
+    border-right: 0;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .viewsTrendSummary div:last-child {
+    border-bottom: 0;
+  }
+}

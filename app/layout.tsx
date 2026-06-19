@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { InstagramOAuthBridge } from "./components/instagram-oauth-bridge";
 
 export const metadata: Metadata = {
   title: "Social Metrics Dashboard",
@@ -14,10 +13,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>
-        <InstagramOAuthBridge />
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
