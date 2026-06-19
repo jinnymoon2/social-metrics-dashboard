@@ -556,11 +556,11 @@ code {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
-  gap: 6px;
-  max-width: 440px;
-  padding: 6px;
-  margin-top: 20px;
-  border-radius: 16px;
+  gap: 8px;
+  width: 100%;
+  padding: 8px;
+  margin-top: 24px;
+  border-radius: 20px;
   background: #e7ecf4;
   border: 1px solid var(--border);
 }
@@ -569,30 +569,33 @@ code {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  border-radius: 12px;
+  gap: 10px;
+  border-radius: 16px;
   border: 1px solid transparent;
   background: transparent;
-  padding: 12px 16px;
-  font-size: 15px;
-  font-weight: 700;
+  padding: 18px 20px;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
   color: var(--muted);
   cursor: pointer;
-  transition: background 120ms ease, color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
 }
 
 .perfTabButton:hover {
   color: var(--foreground);
+  background: rgba(255, 255, 255, 0.6);
 }
 
 .perfTabButton.is-active {
   background: var(--primary);
   border-color: var(--primary);
   color: white;
-  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.28);
+  box-shadow: 0 12px 26px rgba(37, 99, 235, 0.34);
 }
 
 .perfTabButton.is-active:hover {
+  background: var(--primary-hover);
   color: white;
 }
 
@@ -600,17 +603,17 @@ code {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 22px;
+  min-width: 26px;
   border-radius: 999px;
-  background: #e4e7ec;
-  padding: 2px 8px;
-  font-size: 12px;
-  font-weight: 700;
+  background: #d6deea;
+  padding: 3px 10px;
+  font-size: 13px;
+  font-weight: 800;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 
 .perfTabButton.is-active .perfTabCount {
-  background: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.26);
   color: white;
 }
