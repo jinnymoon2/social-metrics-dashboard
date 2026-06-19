@@ -8,8 +8,8 @@ import {
 // Instagram returns at most ~25 posts per page; paginate with the "after"
 // cursor until we hit the limit or Instagram signals there are no more pages.
 // Cap at 100 so we do not hammer the API; the user can refresh to pick up new posts.
-const MAX_PAGES = 5;
-const PAGE_SIZE = 25;
+const MAX_PAGES = 10;
+const PAGE_SIZE = 50;
 
 // Pulls "#tag" tokens out of a caption. Returns lowercase, deduplicated tags.
 function extractHashtagsFromCaption(caption: string | undefined | null): string[] {

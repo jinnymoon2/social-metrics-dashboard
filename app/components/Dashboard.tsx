@@ -5,11 +5,10 @@ import { RefreshCw } from "lucide-react";
 import PlatformFilter from "@/app/components/PlatformFilter";
 import PostForm from "@/app/components/PostForm";
 import PostTable from "@/app/components/PostTable";
-import TrendsPanel from "@/app/components/TrendsPanel";
+import PerformanceTabs from "@/app/components/PerformanceTabs";
 import HashtagLeaderboard from "@/app/components/HashtagLeaderboard";
 import InstagramConnectionPanel from "@/app/components/InstagramConnectionPanel";
 import { Platform, SocialPost } from "@/app/lib/types";
-import { splitPostsByReel } from "@/app/lib/metrics";
 
 type InstagramStatus = {
   connected: boolean;
@@ -23,8 +22,8 @@ type InstagramMediaResponse = {
   error?: string;
 };
 
-const INSTAGRAM_POSTS_KEY = "social_metrics_instagram_posts";
-const INSTAGRAM_FETCHED_KEY = "social_metrics_instagram_fetched";
+const INSTAGRAM_POSTS_KEY = "social_metrics_instagram_posts_v2";
+const INSTAGRAM_FETCHED_KEY = "social_metrics_instagram_fetched_v2";
 
 type DashboardProps = {
   initialPosts: SocialPost[];
@@ -73,6 +72,17 @@ export default function Dashboard({
   const [instagramSyncError, setInstagramSyncError] = useState<string | null>(null);
   const [instagramFetchedAt, setInstagramFetchedAt] = useState<string | null>(null);
   const [instagramImportedCount, setInstagramImportedCount] = useState(0);
+
+  // Wipe stale cache versions on mount so users always see a fresh sync.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.removeItem("social_metrics_instagram_posts");
+      window.localStorage.removeItem("social_metrics_instagram_fetched");
+    } catch {
+      // ignore
+    }
+  }, []);
 
   // On mount, hydrate any cached Instagram posts from localStorage so the user
   // does not have to wait for a fresh fetch on every page load.
@@ -171,12 +181,7 @@ export default function Dashboard({
     [posts]
   );
 
-  const postAndReelSplit = useMemo(
-    () => splitPostsByReel(filteredPosts),
-    [filteredPosts]
-  );
-
-  function handleAddPost(post: SocialPost) {
+function handleAddPost(post: SocialPost) {
     setPosts((current) => [post, ...current]);
   }
 
@@ -263,19 +268,7 @@ export default function Dashboard({
         />
       </div>
 
-<TrendsPanel
-        posts={postAndReelSplit.posts}
-        title="Posts performance over time"
-        subtitle="Daily totals for images, videos, and carousels."
-        emptyMessage="No non-reel posts yet. Once you publish or import Instagram images, videos, or carousels, this chart will fill in."
-      />
-
-      <TrendsPanel
-        posts={postAndReelSplit.reels}
-        title="Reels performance over time"
-        subtitle="Daily totals for Instagram reels (uses the views metric)."
-        emptyMessage="No reels yet. Once you publish or import Instagram reels, this chart will fill in."
-      />
+<PerformanceTabs posts={filteredPosts} />
 
       <HashtagLeaderboard posts={instagramPosts} />
 

@@ -117,9 +117,20 @@ export default function TrendsPanel({
   const stepX = daily.length > 1 ? innerWidth / (daily.length - 1) : 0;
 
   const points = seriesValues.map((value, index) => {
+    const point = daily[index];
     const x = PADDING_X + index * stepX;
     const y = CHART_HEIGHT - PADDING_Y - (value / maxValue) * innerHeight;
-    return { x, y, value, label: daily[index].date };
+    return {
+      x,
+      y,
+      value,
+      label: point.date,
+      views: point.views,
+      likes: point.likes,
+      comments: point.comments,
+      shares: point.shares,
+      posts: point.posts
+    };
   });
 
   const linePath = points
@@ -272,7 +283,15 @@ export default function TrendsPanel({
               stroke={activeColor}
               strokeWidth="2"
             >
-              <title>{point.label + ": " + formatNumber(point.value)}</title>
+              <title>
+                {[
+                  point.label + " · " + point.posts + " " + (point.posts === 1 ? "post" : "posts"),
+                  "Views: " + formatNumber(point.views),
+                  "Likes: " + formatNumber(point.likes),
+                  "Comments: " + formatNumber(point.comments),
+                  "Shares: " + formatNumber(point.shares)
+                ].join("\n")}
+              </title>
             </circle>
           ))}
 
