@@ -375,6 +375,65 @@ code {
   max-height: 320px;
 }
 
+.chartPlot {
+  position: relative;
+}
+
+.chartHoverLine {
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+  opacity: 0.5;
+}
+
+.chartTooltip {
+  position: absolute;
+  z-index: 5;
+  min-width: 168px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--foreground);
+  color: #fff;
+  box-shadow: 0 14px 30px rgba(16, 24, 40, 0.3);
+  pointer-events: none;
+}
+
+.chartTooltipDate {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.chartTooltipRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
+.chartTooltipRow span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.chartTooltipRow strong {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.chartTooltipDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
 .chartGridLine {
   stroke: #e4e7ec;
   stroke-width: 1;

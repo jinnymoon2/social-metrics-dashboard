@@ -1,4 +1,5 @@
 {
+  "/api/instagram/connect/route": "app/api/instagram/connect/route.js",
   "/api/instagram/status/route": "app/api/instagram/status/route.js",
   "/page": "app/page.js"
 }

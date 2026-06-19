@@ -364,6 +364,65 @@ code {
   display: block;
 }
 
+.chartPlot {
+  position: relative;
+}
+
+.chartHoverLine {
+  stroke: var(--muted);
+  stroke-width: 1px;
+  stroke-dasharray: 3 4;
+  opacity: .5;
+}
+
+.chartTooltip {
+  z-index: 5;
+  background: var(--foreground);
+  color: #fff;
+  pointer-events: none;
+  border-radius: 12px;
+  min-width: 168px;
+  padding: 10px 12px;
+  position: absolute;
+  box-shadow: 0 14px 30px #1018284d;
+}
+
+.chartTooltipDate {
+  letter-spacing: -.01em;
+  white-space: nowrap;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.chartTooltipRow {
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  padding: 3px 0;
+  font-size: 12px;
+  display: flex;
+}
+
+.chartTooltipRow span {
+  color: #ffffffc7;
+  align-items: center;
+  gap: 7px;
+  display: inline-flex;
+}
+
+.chartTooltipRow strong {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.chartTooltipDot {
+  border-radius: 999px;
+  width: 8px;
+  height: 8px;
+  display: inline-block;
+}
+
 .chartGridLine {
   stroke: #e4e7ec;
   stroke-width: 1px;

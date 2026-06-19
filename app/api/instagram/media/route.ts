@@ -1,15 +1,11 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import {
-  InstagramMediaResponse,
-  getInstagramConfig
-} from "@/app/lib/instagram/config";
 
-// Instagram returns at most ~25 posts per page; paginate with the "after"
-// cursor until we hit the limit or Instagram signals there are no more pages.
-// Cap at 100 so we do not hammer the API; the user can refresh to pick up new posts.
-const MAX_PAGES = 10;
-const PAGE_SIZE = 50;
+// Walk the pagination cursor to the end so every post and reel is imported.
+// MAX_PAGES is only a safety stop; normal accounts finish well before it.
+const MAX_PAGES = 50;
+const PAGE_SIZE = 100;
+const GRAPH_BASE = "https://graph.instagram.com";
 
 // Pulls "#tag" tokens out of a caption. Returns lowercase, deduplicated tags.
 function extractHashtagsFromCaption(caption: string | undefined | null): string[] {
@@ -27,47 +23,57 @@ function extractHashtagsFromCaption(caption: string | undefined | null): string[
   return result;
 }
 
-// Fetches the impressions/views metric for one media item via the Instagram
-// Graph API media-insights endpoint. The metric name varies by media type:
-// reels and videos use "views", images and carousels use "impressions".
-async function fetchMediaViews(mediaId: string, mediaType: string | undefined, graphBaseUrl: string, accessToken: string): Promise<number> {
-  const isVideo = mediaType === "VIDEO" || mediaType === "REEL";
-  const metric = isVideo ? "views" : "impressions";
-  const url = new URL(graphBaseUrl + "/" + mediaId + "/insights");
-  url.searchParams.set("metric", metric);
-  url.searchParams.set("access_token", accessToken);
-  try {
-    const response = await fetch(url, { cache: "no-store" });
-    if (!response.ok) return 0;
-    const data = await response.json();
-    const first = data.data && data.data[0];
-    const value = first && first.values && first.values[0] && first.values[0].value;
-    return typeof value === "number" ? value : 0;
-  } catch {
-    return 0;
+// View count for one media item. Current Graph API versions expose a unified
+// "views" metric; older versions use "impressions" for images/carousels. Try
+// "views" first and fall back, so a deprecated metric never zeroes everything.
+// Any failure resolves to 0 rather than aborting the whole import.
+async function fetchMediaViews(mediaId: string, accessToken: string): Promise<number> {
+  const metrics = ["views", "impressions"];
+  for (const metric of metrics) {
+    try {
+      const url = new URL(GRAPH_BASE + "/" + mediaId + "/insights");
+      url.searchParams.set("metric", metric);
+      url.searchParams.set("access_token", accessToken);
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) continue;
+      const data = await response.json();
+      const first = data.data && data.data[0];
+      if (first) {
+        if (first.values && first.values[0] && typeof first.values[0].value === "number") {
+          return first.values[0].value;
+        }
+        if (first.total_value && typeof first.total_value.value === "number") {
+          return first.total_value.value;
+        }
+      }
+    } catch {
+      // try the next metric
+    }
   }
+  return 0;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  // The OAuth flow stores the token client-side, so the dashboard forwards it
+  // in a header. Fall back to a cookie in case it is set server-side too.
+  const headerToken = request.headers.get("x-instagram-access-token");
   const cookieStore = await cookies();
-  const accessToken = cookieStore.get("instagram_access_token")?.value;
-  const userId = cookieStore.get("instagram_user_id")?.value;
+  const accessToken = headerToken || cookieStore.get("instagram_access_token")?.value;
 
-  if (!accessToken || !userId) {
+  if (!accessToken) {
     return NextResponse.json(
       { error: "Instagram is not connected yet." },
       { status: 401 }
     );
   }
 
-  const { graphBaseUrl } = getInstagramConfig();
-
-  // Step 1: paginate the media list to get up to MAX_PAGES * PAGE_SIZE posts.
+  // Step 1: page through /me/media until there is no next cursor. Using "me"
+  // means we only need the access token, not a separately-stored user id.
   const mediaItems = [];
   let after;
 
   for (let page = 0; page < MAX_PAGES; page += 1) {
-    const listUrl = new URL(graphBaseUrl + "/" + userId + "/media");
+    const listUrl = new URL(GRAPH_BASE + "/me/media");
     listUrl.searchParams.set(
       "fields",
       "id,caption,media_type,media_url,permalink,timestamp,username,like_count,comments_count,media_product_type,thumbnail_url"
@@ -94,20 +100,20 @@ export async function GET() {
     for (const item of data) mediaItems.push(item);
 
     after = payload.paging && payload.paging.cursors && payload.paging.cursors.after;
-    if (!after || data.length < PAGE_SIZE) {
+    if (!after) {
       break;
     }
   }
 
-  // Step 2: fetch per-media view counts in parallel. Insights endpoint can
-  // 429 if we burst too hard, so do 5 at a time.
+  // Step 2: fetch per-media view counts. Insights can 429 under a burst, so do
+  // 5 at a time.
   const viewsByMediaId = new Map();
   const concurrency = 5;
   for (let i = 0; i < mediaItems.length; i += concurrency) {
     const slice = mediaItems.slice(i, i + concurrency);
     const results = await Promise.all(
       slice.map(async (item) => {
-        const views = await fetchMediaViews(item.id, item.media_type, graphBaseUrl, accessToken);
+        const views = await fetchMediaViews(item.id, accessToken);
         return { id: item.id, views };
       })
     );
@@ -119,7 +125,11 @@ export async function GET() {
   const posts = mediaItems.map((item) => {
     const caption = item.caption || "";
     const firstLine = caption.split("\n")[0] || "";
-    const title = firstLine.slice(0, 80) || ("Instagram " + (item.media_type || "post"));
+    // Reels report media_type "VIDEO"; the reel flag is in media_product_type.
+    // Normalize to "REEL" so the posts/reels toggle can split them out.
+    const isReel = item.media_product_type === "REELS";
+    const mediaType = isReel ? "REEL" : (item.media_type || undefined);
+    const title = firstLine.slice(0, 80) || ("Instagram " + (mediaType || "post"));
     return {
       id: "instagram-" + item.id,
       platform: "Instagram",
@@ -131,10 +141,8 @@ export async function GET() {
       comments: item.comments_count || 0,
       shares: 0,
       hashtags: extractHashtagsFromCaption(caption),
-      notes: "Imported from Instagram. Type: " + (item.media_type || "unknown") + ".",
-      // Reels report media_type "VIDEO"; the reel flag is in media_product_type.
-      // Normalize to "REEL" so the posts/reels toggle can split them out.
-      mediaType: item.media_product_type === "REELS" ? "REEL" : (item.media_type || undefined)
+      notes: "Imported from Instagram. Type: " + (item.media_product_type || item.media_type || "unknown") + ".",
+      mediaType
     };
   });
 
@@ -144,3 +152,6 @@ export async function GET() {
     total: mediaItems.length
   });
 }
+
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
