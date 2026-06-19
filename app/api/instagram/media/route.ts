@@ -132,7 +132,9 @@ export async function GET() {
       shares: 0,
       hashtags: extractHashtagsFromCaption(caption),
       notes: "Imported from Instagram. Type: " + (item.media_type || "unknown") + ".",
-      mediaType: item.media_type || undefined
+      // Reels report media_type "VIDEO"; the reel flag is in media_product_type.
+      // Normalize to "REEL" so the posts/reels toggle can split them out.
+      mediaType: item.media_product_type === "REELS" ? "REEL" : (item.media_type || undefined)
     };
   });
 
